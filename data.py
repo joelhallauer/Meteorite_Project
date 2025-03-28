@@ -15,25 +15,23 @@ def load_and_process_data():
     
     return df_clean
 
-def min_max_mass(df):
-    mass_max = df['mass'].max()
-    mass_min = df['mass'].min()
+# Daten laden und bereinigen
+df = load_and_process_data()
 
-    return mass_max, mass_min
+# Berechnung von mass_max und mass_min
+mass_max = df['mass'].max()
+mass_min = df['mass'].min()
 
-def min_max_year(df):
-    year_max = df['year'].max()
-    year_min = df['year'].min()
+# Berechnung von year_max und year_min
+year_max = df['year'].max()
+year_min = df['year'].min()
 
-    return year_max, year_min
 
 # Testen, falls die Datei direkt ausgeführt wird
 if __name__ == "__main__":
     df = load_and_process_data()
     print(df.head())
 
-    mass_max, mass_min = min_max_mass(df)
     print(f"Minimale Masse: {mass_min}, Maximale Masse: {mass_max}")
     
-    year_max, year_min = min_max_year(df)
     print(f"Frühestes Jahr: {year_min}, Spätestes Jahr: {year_max}")
