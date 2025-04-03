@@ -2,6 +2,7 @@ from dash import Dash, html, dcc
 import plotly.express as px
 import pandas as pd
 import data as dt
+import numpy as np
 
 # Daten laden
 df = dt.load_and_process_data()
@@ -22,19 +23,23 @@ def style_hist(fig):
     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, title_text="")
     return fig
 
+
+df = df[df['mass'] > 0]
+df['log_mass'] = np.log10(df['mass'])
+
 # Histogramm für den Massen-Slider (nur Säulen, zentrierter Titel)
 mass_hist = px.histogram(
     df,
-    x="mass",
-    nbins=80,
-    title="Masse",
+    x="log_mass",
+    nbins=500,
+    title="Logarithmierte Masse",
     template="plotly_dark",
-    range_x=[0, 10000000]
+    labels={"log_mass": "Masse", "count": "Anzahl"}
 )
 mass_hist.update_layout(
     xaxis=dict(
         rangeslider=dict(visible=True),
-        type="linear"
+        type="linear"  # Da die Daten schon transformiert sind
     )
 )
 mass_hist = style_hist(mass_hist)
@@ -64,7 +69,7 @@ fig = px.scatter_mapbox(
     hover_name="name",
     hover_data=["mass", "fall", "GeoLocation"],
     center={"lat": 46.8521, "lon": 9.5297},
-    color_continuous_scale=px.colors.cyclical.IceFire,
+    color_continuous_scale=[[0, 'black'], [8, 'black'], [0.85, 'violet'], [0.9, 'blue'], [0.95, 'green'], [0.975, 'yellow'], [0.99, 'orange'], [1, 'red']],
     zoom=1,
     height=500,
     template="plotly_dark"
