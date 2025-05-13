@@ -6,25 +6,7 @@ import numpy as np
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
 
-# --- Datenvorbereitung ---
-df = pd.read_csv("data/meteorite-landings.csv")
-
-# Entferne Zeilen ohne Koordinaten oder mit fehlender Masse
-df = df.dropna(subset=['reclat', 'reclong', 'mass', 'year'])
-
-# Entferne ungültige Einträge und konvertiere Jahr in Integer
-df = df[(df['year'] <= 2025) & (df['year'] >= 1000)]
-df['year'] = df['year'].astype(int)
-
-# Stelle sicher, dass alle Massen positiv sind
-df['mass'] = df['mass'].abs()
-
-# Verbesserte Punktgröße - logarithmische Skala für bessere Sichtbarkeit der Unterschiede
-df['size_for_plot'] = np.log10(df['mass'] + 1) * 3
-df['size_for_plot'] = df['size_for_plot'].clip(lower=0.1, upper=15).fillna(0.1)
-
-# Index zurücksetzen
-df = df.reset_index(drop=True)
+df = pd.read_csv("data/meteorite-landings-cleaned.csv")
 
 # Initialisiere den Geocoder
 geolocator = Nominatim(user_agent="impact-atlas")
@@ -123,7 +105,10 @@ app.layout = html.Div([
             # Fall/Found-Filter
             html.H4("Status (Fall/Found):", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
             dcc.Checklist(
-                options=[{"label": i, "value": i} for i in df["fall"].unique()],
+                options=[
+                    {"label": "Beobachtet", "value": "Fell"},
+                    {"label": "Gefunden", "value": "Found"}
+                ],
                 value=df["fall"].unique().tolist(),
                 id="fall-filter",
                 labelStyle={'display': 'inline-block', 'margin': '3px 0'}
@@ -235,11 +220,13 @@ def reset_location_inputs(n_clicks):
      Input('search-button', 'n_clicks'),
      Input('reset-button', 'n_clicks'),
      Input('mass-slider', 'value'),
-     Input('year-slider', 'value')],
+     Input('year-slider', 'value'),
+     Input('map-filter', 'value')],
     [State('location-input', 'value'),
      State('radius-dropdown', 'value')]
 )
-def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, selected_mass, selected_year, location, radius):
+
+def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, selected_mass, selected_year, map_type, location, radius):
     # Copy the DataFrame
     filtered_df = df.copy()
 
@@ -276,7 +263,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
                 if location_info:
                     center_lat, center_lon = location_info.latitude, location_info.longitude
                     map_center = dict(lat=center_lat, lon=center_lon)
-                    zoom_level = 5  # Adjust zoom level
+                    zoom_level = 5
 
                     # Filter meteorites based on distance
                     if radius != 'unlimited':
@@ -307,11 +294,24 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
         return empty_fig, html.P("Keine Daten verfügbar für die aktuelle Auswahl.", style={'color': 'red'})
 
     # Create statistics
+    avg_mass = filtered_df['mass'].mean()
+    max_mass = filtered_df['mass'].max()
+    min_mass = filtered_df['mass'].min()
+    
+    # Formatierte Masse für die Statistik nutzen (dieselbe Formatierung wie am Anfang definiert)
+    def format_mass(mass):
+        if mass < 1000:
+            return f"{mass:.2f} g"
+        elif mass < 1000000:
+            return f"{mass/1000:.2f} kg"
+        else:
+            return f"{mass/1000000:.2f} t"
+    
     stats = [
         html.P(f"Anzahl Meteoriten: {len(filtered_df)}", style={'margin': '5px 0'}),
-        html.P(f"Durchschnittliche Masse: {filtered_df['mass'].mean():.2f} g", style={'margin': '5px 0'}),
-        html.P(f"Grösste Masse: {filtered_df['mass'].max():.2f} g", style={'margin': '5px 0'}),
-        html.P(f"Kleinste Masse: {filtered_df['mass'].min():.2f} g", style={'margin': '5px 0'})
+        html.P(f"Durchschnittliche Masse: {format_mass(avg_mass)}", style={'margin': '5px 0'}),
+        html.P(f"Grösste Masse: {format_mass(max_mass)}", style={'margin': '5px 0'}),
+        html.P(f"Kleinste Masse: {format_mass(min_mass)}", style={'margin': '5px 0'})
     ]
 
     # Add year statistics only if valid year values exist
@@ -320,28 +320,62 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
             html.P(f"Zeitraum: {int(filtered_df['year'].min())} - {int(filtered_df['year'].max())}", style={'margin': '5px 0'})
         )
 
-    # Create the map with filtered data
-    fig = px.scatter_mapbox(
-        filtered_df,
-        lat="reclat",
-        lon="reclong",
-        color="year",
-        size="size_for_plot",
-        size_max=15,
-        color_continuous_scale="Viridis",
-        hover_name="name",
-        hover_data={
-            "year": True,
-            "mass": ':.2f',
-            "recclass": True,
-            "fall": True,
-            "size_for_plot": False
-        },
-        opacity=0.7,
-        mapbox_style="carto-positron"
-    )
+    # Erstelle die richtige Karte basierend auf dem Kartentyp
+    if map_type == 'Heatmap':
+        fig = px.density_mapbox(
+            filtered_df,
+            lat="reclat",
+            lon="reclong",
+            z="mass",
+            radius=10,
+            opacity=0.8,
+            mapbox_style="carto-positron",
+            zoom=1.5,
+            center=map_center
+        )
+    else:  # Punktekarte
+        fig = px.scatter_mapbox(
+            filtered_df,
+            lat="reclat",
+            lon="reclong",
+            color="year",
+            size="size_for_plot",
+            size_max=15,
+            color_continuous_scale="Viridis",
+            hover_name="name",
+            hover_data={
+                "year": True,
+                "formatted_mass": True,
+                "recclass": True,
+                "fall_de": True,
+                "country": True,
+                "mass": False,
+                "fall": False,
+                "size_for_plot": False
+            },
+            opacity=0.7,
+            mapbox_style="carto-positron",
+            labels={
+                "year": "Fundjahr",
+                "formatted_mass": "Masse",
+                "recclass": "Meteoritenklasse",
+                "fall_de": "Beobachteter Fall",
+                "country": "Land"
+            }
+        )
 
-    fig.update_traces(marker=dict(sizemode="area"))
+        # Customizing hover template to show friendlier labels with country information
+        fig.update_traces(
+            hovertemplate="<b>%{hovertext}</b><br>" +
+                          "Fundjahr: %{customdata[0]}<br>" +
+                          "Land: %{customdata[4]}<br>" +
+                          "Breitengrad: %{lat}<br>" +
+                          "Längengrad: %{lon}<br>" +
+                          "Masse: %{customdata[1]}<br>" +
+                          "Meteoritenklasse: %{customdata[2]}<br>" +
+                          "Beobachteter Fall: %{customdata[3]}<br>",
+            marker=dict(sizemode="area")
+        )
 
     # Layout optimization
     fig.update_layout(
@@ -352,7 +386,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
             zoom=zoom_level
         ),
         coloraxis_colorbar=dict(
-            title="Jahr",
+            title="Fundjahr",
             thicknessmode="pixels",
             thickness=20,
             len=0.6,
