@@ -1,5 +1,5 @@
 import dash
-from dash import html, dcc, Input, Output, State
+from dash import html, dcc, Input, Output, State, dash_table
 import plotly.express as px
 import pandas as pd
 import numpy as np
@@ -58,8 +58,25 @@ app.layout = html.Div([
         
         # Kartenbereich
         html.Div([
-            dcc.Graph(id='meteor-map', config={"scrollZoom": True}, style={'height': '85vh'})
-        ], style={'flex': '75%', 'padding': '10px'}),
+            dcc.Graph(id='meteor-map', config={"scrollZoom": True},
+                    style={'height': '50vh'}),
+
+            dash_table.DataTable(                      # Tabelle direkt DARUNTER
+                id='meteor-table',
+                columns=[
+                    {"name": "Name", "id": "name"},
+                    {"name": "Jahr", "id": "year"},
+                    {"name": "Masse", "id": "formatted_mass"},
+                    {"name": "Klasse", "id": "recclass"},
+                    {"name": "Land", "id": "country"},
+                ],
+                page_size=10,
+                row_selectable='single',
+                style_table={'height': '35vh', 'overflowY': 'auto', 'marginTop': '8px'},
+                style_cell={'fontFamily': 'Arial', 'fontSize': '12px', 'padding': '3px'},
+            ),
+        ], style={'flex': '75%', 'padding': '10px',          # bleibt linker Bereich
+                'display': 'flex', 'flexDirection': 'column'}),
 
         # Steuerungsbereich
         html.Div([
@@ -257,20 +274,22 @@ def reset_location_inputs(n_clicks):
     return dash.no_update
 
 @app.callback(
-    [Output('meteor-map', 'figure'),
-     Output('stats-container', 'children')],
-    [Input('fall-filter', 'value'),
-     Input('class-filter', 'value'),
+    [Output('meteor-map',   'figure'),
+     Output('stats-container', 'children'),
+     Output('meteor-table', 'data')],
+    [Input('fall-filter',   'value'),
+     Input('class-filter',  'value'),
      Input('search-button', 'n_clicks'),
-     Input('reset-button', 'n_clicks'),
-     Input('mass-slider', 'value'),
-     Input('year-slider', 'value'),
-     Input('map-filter', 'value')],
-    [State('location-input', 'value'),
-     State('radius-dropdown', 'value')]
+     Input('reset-button',  'n_clicks'),
+     Input('mass-slider',   'value'),
+     Input('year-slider',   'value'),
+     Input('map-filter',    'value'),
+     Input('meteor-table',  'active_cell')],
+    [State('location-input','value'),
+     State('radius-dropdown','value')]
 )
 
-def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, selected_mass, selected_year, map_type, location, radius):
+def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, selected_mass, selected_year, map_type, active_cell, location, radius):
     # Copy the DataFrame
     filtered_df = df.copy()
 
@@ -366,6 +385,14 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
             html.P(f"Zeitraum: {int(filtered_df['year'].min())} - {int(filtered_df['year'].max())}", style={'margin': '5px 0'})
         )
 
+    # Click-Zoom: falls eine Tabellenzeile aktiv ist
+    if active_cell and 'row' in active_cell:
+        idx = active_cell['row']
+        if 0 <= idx < len(filtered_df):
+            sel = filtered_df.iloc[idx]
+            map_center = dict(lat=sel['reclat'], lon=sel['reclong'])
+            zoom_level = 6
+
     # Erstelle die richtige Karte basierend auf dem Kartentyp
     if map_type == 'Heatmap':
         fig = px.density_mapbox(
@@ -441,7 +468,12 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
         ),
     )
 
-    return fig, stats
+    # Tabelle aufbereiten
+    table_data = filtered_df[
+        ['name', 'year', 'formatted_mass', 'recclass', 'country']
+    ].to_dict('records')
+
+    return fig, stats, table_data 
 
 @app.callback(
     [Output('mass-slider', 'value'),
