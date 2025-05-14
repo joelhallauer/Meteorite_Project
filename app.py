@@ -9,6 +9,28 @@ from flask_caching import Cache
 
 df = pd.read_csv("data/meteorite-landings-cleaned.csv")
 
+# Log-Spalte (Basis 10) für den Slider
+df["log_mass"] = np.log10(df["mass"] + 1)  # +1 g verhindert negative Logs
+
+# Formatierer für die Masse
+def format_mass(mass: float) -> str:
+    if mass < 1_000:               # < 1 kg
+        return f"{mass:.2f} g"
+    elif mass < 1_000_000:         # < 1 t
+        return f"{mass/1_000:.2f} kg"
+    else:
+        return f"{mass/1_000_000:.2f} t"
+
+def format_mass_int(mass: float) -> str:
+    """Massen schön ohne Nachkommastellen (außer < 1 g) formatieren."""
+    if mass < 1:                     # 0,1 g usw. soll eine Nachkomma behalten
+        return f"{mass:.1f} g"
+    if mass < 1_000:
+        return f"{int(round(mass))} g"
+    if mass < 1_000_000:
+        return f"{int(round(mass/1_000))} kg"
+    return f"{int(round(mass/1_000_000))} t"
+
 # Initialisiere den Geocoder
 geolocator = Nominatim(user_agent="impact-atlas")
 
@@ -50,14 +72,22 @@ app.layout = html.Div([
                 ),
             # Masse-Filter
             html.H4("Masse in Gramm:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
+            html.Div(id='mass-slider-display',
+                    style={'textAlign':'center', 'fontSize':'12px', 'marginTop':'-6px'}),
             dcc.RangeSlider(
                 id='mass-slider',
-                min=df['mass'].min(),
-                max=df['mass'].max(),
-                value=[df['mass'].min(), df['mass'].max()],
-                marks={int(i): f'{int(i)}' for i in np.linspace(df['mass'].min(), df['mass'].max(), 5)},
-                tooltip={"placement": "bottom", "always_visible": True},
-                updatemode='drag'
+                min=df['log_mass'].min(),      
+                max=df['log_mass'].max(),
+                value=[df['log_mass'].min(), df['log_mass'].max()],
+                marks={
+                    float(f"{tick:.2f}"): format_mass_int(10**tick - 1)
+                    for tick in np.linspace(df['log_mass'].min(),
+                                            df['log_mass'].max(),
+                                            8)
+                },
+                step=0.05,
+                tooltip={"placement": "bottom"},           # Tooltip nur beim Ziehen
+                updatemode='drag',
             ),
             html.Br(),
             html.Div([
@@ -244,11 +274,13 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
     # Copy the DataFrame
     filtered_df = df.copy()
 
-    # Filter by mass range
+    # Slider gibt log10(mass+1) zurück → zurückrechnen
     if selected_mass:
-        min_mass, max_mass = selected_mass
-        filtered_df = filtered_df[(filtered_df['mass'] >= min_mass) & (filtered_df['mass'] <= max_mass)]
-
+        log_min, log_max = selected_mass
+        min_mass = 10**log_min - 1
+        max_mass = 10**log_max - 1
+        filtered_df = filtered_df[(filtered_df['mass'] >= min_mass) &
+                                (filtered_df['mass'] <= max_mass)]
     # Filter by meteorite type
     if selected_classes:
         filtered_df = filtered_df[filtered_df["recclass"].isin(selected_classes)]
@@ -311,7 +343,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
     avg_mass = filtered_df['mass'].mean()
     max_mass = filtered_df['mass'].max()
     min_mass = filtered_df['mass'].min()
-    
+
     # Formatierte Masse für die Statistik nutzen (dieselbe Formatierung wie am Anfang definiert)
     def format_mass(mass):
         if mass < 1000:
@@ -414,31 +446,42 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
 @app.callback(
     [Output('mass-slider', 'value'),
      Output('min-mass-input', 'value'),
-     Output('max-mass-input', 'value')],
+     Output('max-mass-input', 'value'),
+     Output('mass-slider-display', 'children')],     # <-- NEU
     [Input('mass-slider', 'value'),
      Input('min-mass-input', 'value'),
      Input('max-mass-input', 'value')]
 )
 def sync_mass_inputs(slider_value, min_mass, max_mass):
-    # Wenn der Slider geändert wird, aktualisiere die Eingabefelder
     ctx = dash.callback_context
     if not ctx.triggered:
-        return slider_value, slider_value[0], slider_value[1]
+        label = f"{int(10**slider_value[0]-1):,} g – " \
+                f"{int(10**slider_value[1]-1):,} g"
+        return slider_value, 10**slider_value[0]-1, 10**slider_value[1]-1, label
 
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    trigger = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    if trigger_id == 'mass-slider':
-        return slider_value, slider_value[0], slider_value[1]
-    elif trigger_id == 'min-mass-input':
-        # Stelle sicher, dass der minimale Wert nicht größer als der maximale ist
+    if trigger == 'mass-slider':
+        min_m = 10**slider_value[0] - 1
+        max_m = 10**slider_value[1] - 1
+        label = f"{int(min_m):,} g – {int(max_m):,} g"
+        return slider_value, min_m, max_m, label
+
+    elif trigger == 'min-mass-input':
         min_mass = min(min_mass, max_mass)
-        return [min_mass, max_mass], min_mass, max_mass
-    elif trigger_id == 'max-mass-input':
-        # Stelle sicher, dass der maximale Wert nicht kleiner als der minimale ist
-        max_mass = max(max_mass, min_mass)
-        return [min_mass, max_mass], min_mass, max_mass
+        label = f"{int(min_mass):,} g – {int(max_mass):,} g"
+        return [np.log10(min_mass + 1), np.log10(max_mass + 1)], \
+               min_mass, max_mass, label
 
-    return slider_value, slider_value[0], slider_value[1]
+    elif trigger == 'max-mass-input':
+        max_mass = max(max_mass, min_mass)
+        label = f"{int(min_mass):,} g – {int(max_mass):,} g"
+        return [np.log10(min_mass + 1), np.log10(max_mass + 1)], \
+               min_mass, max_mass, label
+
+    # Fallback
+    label = f"{int(10**slider_value[0])} g – {int(10**slider_value[1]):,} g"
+    return slider_value, 10**slider_value[0], 10**slider_value[1], label
 
 @app.callback(
     [Output('year-slider', 'value'),
