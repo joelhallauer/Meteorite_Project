@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
+from flask_caching import Cache
 
 df = pd.read_csv("data/meteorite-landings-cleaned.csv")
 
@@ -15,9 +16,22 @@ geolocator = Nominatim(user_agent="impact-atlas")
 app = dash.Dash(__name__)
 app.title = "Impact Atlas"
 
+# --- Caching-Config ---
+cache = Cache(app.server, config={
+    "CACHE_TYPE": "simple",
+    "CACHE_DEFAULT_TIMEOUT": 3600       # 1 h Standard-Timeout
+})
+
+# --- Hilfs­funktionen mit Cache ---
+@cache.memoize()                       # cacht jede Ort-Anfrage
+def geocode_location(place: str):
+    """Gibt (lat, lon) oder None zurück - gecacht."""
+    loc = geolocator.geocode(place)
+    return (loc.latitude, loc.longitude) if loc else None
+
 # --- Layout der App ---
 app.layout = html.Div([
-    html.H1("Impact Atlas – Meteoriten weltweit", style={'textAlign': 'center', 'fontFamily': 'Arial'}),
+    html.H1("Impact Atlas - Meteoriten weltweit", style={'textAlign': 'center', 'fontFamily': 'Arial'}),
     html.Div(id="main-container", children=[
         
         # Kartenbereich
@@ -258,10 +272,10 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
     if ctx.triggered and ctx.triggered[0]['prop_id'] == 'search-button.n_clicks':
         if location:
             try:
-                # Geocode the location
-                location_info = geolocator.geocode(location)
-                if location_info:
-                    center_lat, center_lon = location_info.latitude, location_info.longitude
+                # Caching-aware Geocoding
+                coords = geocode_location(location)
+                if coords:
+                    center_lat, center_lon = coords
                     map_center = dict(lat=center_lat, lon=center_lon)
                     zoom_level = 5
 
