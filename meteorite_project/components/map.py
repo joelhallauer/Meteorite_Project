@@ -26,7 +26,7 @@ def build_map(df, map_type: str, center: dict, zoom: float):
             if tr.mode == "markers":
                 tr.update(cluster=CLUSTER_CONF)
 
-    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=600)
+    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0))
     return fig
 
 # ---------- Kreis-Overlay ----------------------------------------------

@@ -38,6 +38,7 @@ def Filters(df):
 
             # -------------------------------------------------- Masse‑Filter
             html.H4("Masse (g)"),
+            html.Div(id="mass-slider-display", style={"textAlign": "center", "marginTop": "4px"}),
             dcc.RangeSlider(
                 id="mass-slider",
                 min=log_min,
@@ -45,10 +46,8 @@ def Filters(df):
                 value=[log_min, log_max],
                 marks=mass_marks,
                 step=0.05,
-                tooltip={"placement": "bottom"},
                 updatemode="drag",
             ),
-            html.Div(id="mass-slider-display", style={"textAlign": "center", "marginTop": "4px"}),
             html.Div(
                 [
                     html.Label("Min:", style={"margin": "4px"}),
@@ -63,17 +62,16 @@ def Filters(df):
             html.Hr(),
 
             # -------------------------------------------------- Jahr‑Filter
-            html.H4("Jahr"),
+            html.H4("Jahr"),            
+            html.Div(id="year-slider-display", style={"textAlign": "center", "marginTop": "4px"}),
             dcc.RangeSlider(
                 id="year-slider",
                 min=year_min,
                 max=year_max,
                 value=[year_min, year_max],
                 marks=year_marks,
-                tooltip={"placement": "bottom", "always_visible": True},
                 updatemode="drag",
             ),
-            html.Div(id="year-slider-display", style={"textAlign": "center", "marginTop": "4px"}),
             html.Div(
                 [
                     html.Label("Von:", style={"margin": "4px"}),
