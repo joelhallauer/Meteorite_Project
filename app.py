@@ -1,6 +1,7 @@
 import dash
 from dash import html, dcc, Input, Output, State, dash_table
 import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from geopy.distance import geodesic
@@ -136,7 +137,7 @@ app.layout = html.Div([
             # Jahr-Filter
             html.H4("Jahr:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
             html.Div(id='year-slider-display',
-                style={'textAlign':'center', 'fontSize':'12px', 'marginTop':'-6px'}),
+                style={'textAlign':'center', 'fontSize':'12px','marginTop':'-6px'}),
             dcc.RangeSlider(
                 id='year-slider',
                 min=df['year'].min(),
@@ -468,7 +469,43 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
         ),
     )
 
-    # Tabelle aufbereiten
+    # Marker Clustering
+    for trace in fig.data:
+        if isinstance(trace, go.Scattermapbox) and trace.mode == 'markers':
+            trace.update(
+                cluster=dict(
+                    enabled=True,
+                    maxzoom=8,
+                    step=60,
+                    size=20,
+                    color='rgb(0, 123, 255)',
+                    opacity=0.6
+                )
+            )
+
+    # Füge den Suchradius hinzu, wenn ein Ort eingegeben wurde
+    if center_lat is not None and center_lon is not None and radius != 'unlimited':
+        radius_km = float(radius)
+
+        circle_lats, circle_lons = [], []        
+        for bearing in np.arange(0, 360, 1):
+            point = geodesic(kilometers=radius_km).destination(
+                (center_lat, center_lon),
+                bearing
+            )
+            circle_lats.append(point.latitude)
+            circle_lons.append(point.longitude)
+
+        fig.add_trace(go.Scattermapbox(
+            lat=circle_lats,
+            lon=circle_lons,
+            mode='lines',
+            fill='toself',
+            fillcolor='rgba(255,0,0,0.15)',
+            line=dict(color='red', width=2),
+            name='Suchradius'
+        ))
+
     table_data = filtered_df[
         ['name', 'year', 'formatted_mass', 'recclass', 'country']
     ].to_dict('records')
