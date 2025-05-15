@@ -103,19 +103,18 @@ app.layout = html.Div([
                                             8)
                 },
                 step=0.05,
-                tooltip={"placement": "bottom"},           # Tooltip nur beim Ziehen
                 updatemode='drag',
             ),
             html.Br(),
             html.Div([
-                html.Label("Minimale Masse:", style={'margin': '10px'}),
+                html.Label("min:", style={'margin': '10px'}),
                 dcc.Input(
                     id='min-mass-input',
                     type='number',
                     value=df['mass'].min(),
                     style={'width': '45%', 'marginRight': '5%'}
                 ),
-                html.Label("Maximale Masse:", style={'margin': '10px'}),
+                html.Label("max:", style={'margin': '10px'}),
                 dcc.Input(
                     id='max-mass-input',
                     type='number',
@@ -136,13 +135,14 @@ app.layout = html.Div([
 
             # Jahr-Filter
             html.H4("Jahr:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
+            html.Div(id='year-slider-display',
+                style={'textAlign':'center', 'fontSize':'12px', 'marginTop':'-6px'}),
             dcc.RangeSlider(
                 id='year-slider',
                 min=df['year'].min(),
                 max=df['year'].max(),
                 value=[df['year'].min(), df['year'].max()],
                 marks={int(i): f'{int(i)}' for i in np.linspace(df['year'].min(), df['year'].max(), 5)},
-                tooltip={"placement": "bottom", "always_visible": True},
                 updatemode='drag'
             ),
             html.Br(),
@@ -479,7 +479,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
     [Output('mass-slider', 'value'),
      Output('min-mass-input', 'value'),
      Output('max-mass-input', 'value'),
-     Output('mass-slider-display', 'children')],     # <-- NEU
+     Output('mass-slider-display', 'children')],
     [Input('mass-slider', 'value'),
      Input('min-mass-input', 'value'),
      Input('max-mass-input', 'value')]
@@ -518,7 +518,8 @@ def sync_mass_inputs(slider_value, min_mass, max_mass):
 @app.callback(
     [Output('year-slider', 'value'),
      Output('min-year-input', 'value'),
-     Output('max-year-input', 'value')],
+     Output('max-year-input', 'value'),
+     Output('year-slider-display', 'children')],
     [Input('year-slider', 'value'),
      Input('min-year-input', 'value'),
      Input('max-year-input', 'value')]
@@ -527,22 +528,27 @@ def sync_year_inputs(slider_value, min_year, max_year):
     # Wenn der Slider geändert wird, aktualisiere die Eingabefelder
     ctx = dash.callback_context
     if not ctx.triggered:
-        return slider_value, slider_value[0], slider_value[1]
+        label = f"{int(slider_value[0])} – {int(slider_value[1])}"
+        return slider_value, slider_value[0], slider_value[1], label
 
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
     if trigger_id == 'year-slider':
-        return slider_value, slider_value[0], slider_value[1]
+        label = f"{int(slider_value[0])} – {int(slider_value[1])}"
+        return slider_value, slider_value[0], slider_value[1], label
     elif trigger_id == 'min-year-input':
-        # Stelle sicher, dass der minimale Wert nicht größer als der maximale ist
+        label = f"{int(min_year)} – {int(max_year)}"
         min_year = min(min_year, max_year)
-        return [min_year, max_year], min_year, max_year
+        return [min_year, max_year], min_year, max_year, label
     elif trigger_id == 'max-year-input':
-        # Stelle sicher, dass der maximale Wert nicht kleiner als der minimale ist
+        label = f"{int(min_year)} – {int(max_year)}"
         max_year = max(max_year, min_year)
-        return [min_year, max_year], min_year, max_year
+        return [min_year, max_year], min_year, max_year, label
 
-    return slider_value, slider_value[0], slider_value[1]
+    # Fallback
+    label = f"{int(slider_value[0])} – {int(slider_value[1])}"
+    
+    return slider_value, slider_value[0], slider_value[1], label
 
 if __name__ == '__main__':
     app.run(debug=True)
