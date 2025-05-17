@@ -82,12 +82,26 @@ app.layout = html.Div([
         # Steuerungsbereich
         html.Div([
             html.H4("Karte:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
-            dcc.Dropdown(
-                options=['Punktekarte','Heatmap'],
-                value='Punktekarte',
-                multi=False,
-                id="map-filter",
-                ),
+            dcc.Tabs(
+                id="map-tabs",
+                value="Punktekarte",
+                children=[
+                    dcc.Tab(label="Punktekarte", value="Punktekarte"),
+                    dcc.Tab(label="Heatmap",      value="Heatmap"),
+                ],
+                style={'marginBottom': '15px'}
+            ),
+
+            # NEU: Marker-Clustering On/Off
+            html.Div([
+                dcc.Checklist(
+                    options=[{'label': 'Marker-Clustering', 'value': 'on'}],
+                    value=['on'],                # standardmäßig eingeschaltet
+                    id='cluster-switch',
+                    labelStyle={'display': 'inline-block'}
+                )
+            ], style={'marginBottom': '20px'}),
+
             # Masse-Filter
             html.H4("Masse in Gramm:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
             html.Div(id='mass-slider-display',
@@ -284,13 +298,16 @@ def reset_location_inputs(n_clicks):
      Input('reset-button',  'n_clicks'),
      Input('mass-slider',   'value'),
      Input('year-slider',   'value'),
-     Input('map-filter',    'value'),
+     Input('map-tabs',      'value'),
+     Input('cluster-switch','value'),      # neu
      Input('meteor-table',  'active_cell')],
     [State('location-input','value'),
      State('radius-dropdown','value')]
 )
 
-def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, selected_mass, selected_year, map_type, active_cell, location, radius):
+def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
+               selected_mass, selected_year, map_type, cluster_switch,
+               active_cell, location, radius):
     # Copy the DataFrame
     filtered_df = df.copy()
 
@@ -469,19 +486,21 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks, se
         ),
     )
 
-    # Marker Clustering
+    # Marker-Clustering nur wenn Switch angehakt
     for trace in fig.data:
         if isinstance(trace, go.Scattermapbox) and trace.mode == 'markers':
-            trace.update(
-                cluster=dict(
+            if 'on' in cluster_switch:
+                trace.update(cluster=dict(
                     enabled=True,
                     maxzoom=8,
                     step=60,
                     size=20,
                     color='rgb(0, 123, 255)',
                     opacity=0.6
-                )
-            )
+                ))
+            else:
+                # Clustering komplett aus
+                trace.update(cluster=dict(enabled=False))
 
     # Füge den Suchradius hinzu, wenn ein Ort eingegeben wurde
     if center_lat is not None and center_lon is not None and radius != 'unlimited':
