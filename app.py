@@ -55,6 +55,89 @@ def geocode_location(place: str):
 # --- Layout der App ---
 app.layout = html.Div([
     html.H1("Impact Atlas - Meteoriten weltweit", style={'textAlign': 'center', 'fontFamily': 'Arial'}),
+    
+    # Neue Navigationsleiste
+    html.Div([
+        html.Button(
+            "Cluster Karte", 
+            id='nav-clu',
+            className='nav-button',
+            n_clicks=1,  # Set an initial click to make this the default
+            style={
+                'flex': '1',
+                'padding': '10px 20px',
+                'margin': '0 5px',
+                'backgroundColor': '#4CAF50',
+                'color': 'white',
+                'border': 'none',
+                'borderRadius': '4px',
+                'cursor': 'pointer',
+                'fontWeight': 'bold',
+                'fontSize': '16px'
+            }
+        ),
+        html.Button(
+            "Punktekarte", 
+            id='nav-pun',
+            className='nav-button',
+            n_clicks=0,
+            style={
+                'flex': '1',
+                'padding': '10px 20px',
+                'margin': '0 5px',
+                'backgroundColor': '#2196F3',
+                'color': 'white',
+                'border': 'none',
+                'borderRadius': '4px',
+                'cursor': 'pointer',
+                'fontWeight': 'bold',
+                'fontSize': '16px'
+            }
+        ),
+        html.Button(
+            "Heatmap", 
+            id='nav-hea',
+            className='nav-button',
+            n_clicks=0,
+            style={
+                'flex': '1',
+                'padding': '10px 20px',
+                'margin': '0 5px',
+                'backgroundColor': '#ff9800',
+                'color': 'white',
+                'border': 'none',
+                'borderRadius': '4px',
+                'cursor': 'pointer',
+                'fontWeight': 'bold',
+                'fontSize': '16px'
+            }
+        ),
+        html.Button(
+            "Diagramm", 
+            id='nav-dia',
+            className='nav-button',
+            n_clicks=0,
+            style={
+                'flex': '1',
+                'padding': '10px 20px',
+                'margin': '0 5px',
+                'backgroundColor': '#9c27b0',
+                'color': 'white',
+                'border': 'none',
+                'borderRadius': '4px',
+                'cursor': 'pointer',
+                'fontWeight': 'bold',
+                'fontSize': '16px'
+            }
+        )
+    ], style={
+        'display': 'flex',
+        'justifyContent': 'center',
+        'marginBottom': '20px',
+        'gap': '10px',
+        'padding': '0 20px'
+    }),
+    
     html.Div(id="main-container", children=[
         
         # Kartenbereich
@@ -98,27 +181,6 @@ app.layout = html.Div([
 
         # Steuerungsbereich
         html.Div([
-            html.H4("Karte:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
-            dcc.Tabs(
-                id="map-tabs",
-                value="Punktekarte",  # Standardwert
-                children=[
-                    dcc.Tab(label="Punktekarte", value="Punktekarte"),
-                    dcc.Tab(label="Heatmap", value="Heatmap"),
-                ],
-                style={'marginBottom': '15px'}
-            ),
-
-            # NEU: Marker-Clustering On/Off
-            html.Div([
-                dcc.Checklist(
-                    options=[{'label': 'Marker-Clustering', 'value': 'on'}],
-                    value=['on'],                # standardmäßig eingeschaltet
-                    id='cluster-switch',
-                    labelStyle={'display': 'inline-block'}
-                )
-            ], style={'marginBottom': '20px'}),
-
             # Masse-Filter
             html.H4("Masse in Gramm:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
             html.Div(id='mass-slider-display',
@@ -305,26 +367,46 @@ def reset_location_inputs(n_clicks):
         return '', 'unlimited'
     return dash.no_update
 
+# Add client-side callback for default map on app load
+app.clientside_callback(
+    """
+    function(n_clicks) {
+        if (!n_clicks) {
+            // Trigger initial click on the nav-clu button
+            return 1;
+        }
+        return undefined;
+    }
+    """,
+    Output('nav-clu', 'n_clicks'),
+    [Input('app-container', 'children')]
+)
+
 @app.callback(
     [Output('meteor-map',   'figure'),
      Output('stats-container', 'children'),
-     Output('meteor-table', 'data')],
+     Output('meteor-table', 'data'),
+     Output('main-container', 'children')],
     [Input('fall-filter',   'value'),
      Input('class-filter',  'value'),
      Input('search-button', 'n_clicks'),
      Input('reset-button',  'n_clicks'),
      Input('mass-slider',   'value'),
      Input('year-slider',   'value'),
-     Input('map-tabs',      'value'),
-     Input('cluster-switch','value'),
-     Input('meteor-table',  'active_cell')],
+     Input('meteor-table',  'active_cell'),
+     Input('nav-clu', 'n_clicks'),
+     Input('nav-pun', 'n_clicks'),
+     Input('nav-hea', 'n_clicks'),
+     Input('nav-dia', 'n_clicks')],
     [State('location-input','value'),
-     State('radius-dropdown','value')]
+     State('radius-dropdown','value'),
+     State('main-container', 'children')]
 )
-
 def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
-               selected_mass, selected_year, map_type, cluster_switch,
-               active_cell, location, radius):
+               selected_mass, selected_year, active_cell, 
+               clu_clicks, pun_clicks, hea_clicks, dia_clicks,
+               location, radius, main_container):
+
     # Copy the DataFrame
     filtered_df = df.copy()
 
@@ -440,7 +522,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                                 ], style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#ffeeee', 
                                           'border': '1px solid #ff0000', 'borderRadius': '5px'})
                             ]
-                            return empty_fig, error_message, []
+                            return empty_fig, error_message, [], dash.no_update
                     else:
                         # Wenn 'unlimited' ausgewählt wurde, nutze einen mittleren Zoom
                         zoom_level = 5
@@ -463,22 +545,15 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
             title="Keine Ergebnisse gefunden"
         )
         empty_fig.update_layout(height=800)
-        return empty_fig, html.P("Keine Daten verfügbar für die aktuelle Auswahl.", style={'color': 'red'})
+        error_message = html.P("Keine Daten verfügbar für die aktuelle Auswahl.", style={'color': 'red'})
+        return empty_fig, error_message, [], dash.no_update
 
     # Create statistics
     avg_mass = filtered_df['mass'].mean()
     max_mass = filtered_df['mass'].max()
     min_mass = filtered_df['mass'].min()
 
-    # Formatierte Masse für die Statistik nutzen (dieselbe Formatierung wie am Anfang definiert)
-    def format_mass(mass):
-        if mass < 1000:
-            return f"{mass:.2f} g"
-        elif mass < 1000000:
-            return f"{mass/1000:.2f} kg"
-        else:
-            return f"{mass/1000000:.2f} t"
-    
+    # Formatierte Masse für die Statistik nutzen
     stats = [
         html.P(f"Anzahl Meteoriten: {len(filtered_df)}", style={'margin': '5px 0'}),
         html.P(f"Durchschnittliche Masse: {format_mass(avg_mass)}", style={'margin': '5px 0'}),
@@ -500,21 +575,64 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
             map_center = dict(lat=sel['reclat'], lon=sel['reclong'])
             zoom_level = 6
 
+    # Determine which view to show
+    ctx1 = dash.callback_context
+    if not ctx1.triggered:
+        # Default to cluster view on initial load
+        button_id = "nav-clu"
+    else:
+        button_id = ctx1.triggered[0]['prop_id'].split('.')[0]
+        
+        # If it's not a navigation button, use the current view
+        if button_id not in ['nav-clu', 'nav-pun', 'nav-hea', 'nav-dia']:
+            button_ids = [prop_id.split('.')[0] for prop_id in [
+                'nav-clu.n_clicks', 'nav-pun.n_clicks', 
+                'nav-hea.n_clicks', 'nav-dia.n_clicks'
+            ]]
+            clicks = [clu_clicks or 0, pun_clicks or 0, hea_clicks or 0, dia_clicks or 0]
+            # Get the button with the most clicks
+            if any(clicks):
+                max_clicks_idx = clicks.index(max(clicks))
+                button_id = button_ids[max_clicks_idx]
+            else:
+                button_id = "nav-clu"  # Default
+
+
     # Erstelle die richtige Karte basierend auf dem Kartentyp
-    if map_type == 'Heatmap':
-        fig = px.density_mapbox(
+    if button_id == 'nav-clu':
+        fig = px.scatter_mapbox(
             filtered_df,
             lat="reclat",
             lon="reclong",
-            radius=15,  # Radius für die Clusterbildung (in Pixeln)
-            opacity=0.8,
-            mapbox_style="carto-positron",
-            zoom=zoom_level,
-            center=map_center,
-            color_continuous_scale="Viridis",  # Farbskala für die Dichte
+            color="year",
+            size="size_for_plot",
+            size_max=15,
+            hover_name="name",
+            hover_data={
+                "year": True,
+                "formatted_mass": True,
+                "recclass": True,
+                "fall_de": True,
+                "country": True,
+                "mass": False,
+                "fall": False,
+                "size_for_plot": False
+            },
+            opacity=0.7,
+            mapbox_style="carto-positron"
         )
-        
-    elif map_type == 'Punktekarte':  # Sicherstellen, dass dieser Wert korrekt geprüft wird
+        # Cluster immer aktivieren
+        for trace in fig.data:
+            if isinstance(trace, go.Scattermapbox):
+                trace.update(cluster=dict(
+                    enabled=True,
+                    maxzoom=8,
+                    step=60,
+                    size=20,
+                    color='rgb(0, 123, 255)',
+                    opacity=0.6
+                ))
+    elif button_id == 'nav-pun':
         fig = px.scatter_mapbox(
             filtered_df,
             lat="reclat",
@@ -544,18 +662,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                 "country": "Land"
             }
         )
-    else:
-        # Fallback für unerwartete Werte
-        fig = px.scatter_mapbox(
-            pd.DataFrame(columns=["reclat", "reclong"]),
-            lat="reclat",
-            lon="reclong",
-            zoom=1,
-            mapbox_style="carto-positron",
-            title="Keine Ergebnisse gefunden"
-        )
-
-        # Customizing hover template to show friendlier labels with country information
+         # Customizing hover template to show friendlier labels with country information
         fig.update_traces(
             hovertemplate="<b>%{hovertext}</b><br>" +
                           "Fundjahr: %{customdata[0]}<br>" +
@@ -567,6 +674,35 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                           "Beobachteter Fall: %{customdata[3]}<br>",
             marker=dict(sizemode="area")
         )
+    elif button_id == 'nav-hea':
+        fig = px.density_mapbox(
+            filtered_df,
+            lat="reclat",
+            lon="reclong",
+            radius=15,  # Radius für die Clusterbildung (in Pixeln)
+            opacity=0.8,
+            mapbox_style="carto-positron",
+            zoom=zoom_level,
+            center=map_center,
+            color_continuous_scale="Viridis",  # Farbskala für die Dichte
+        )
+    elif button_id == 'nav-dia':
+        return html.Div([
+            html.H2("Diagramm-Ansicht", style={'textAlign': 'center'}),
+            dcc.Graph(
+                figure={
+                    'data': [{
+                        'x': [1, 2, 3],
+                        'y': [4, 1, 2],
+                        'type': 'bar'
+                    }],
+                    'layout': {
+                        'title': 'Platzhalter für Diagramm'
+                    }
+                },
+                style={'height': '600px'}
+            )
+        ])
 
     # Layout optimization
     fig.update_layout(
@@ -577,22 +713,6 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
             zoom=zoom_level
         )
     )
-
-    # Marker-Clustering nur wenn Switch angehakt
-    for trace in fig.data:
-        if isinstance(trace, go.Scattermapbox) and trace.mode == 'markers':
-            if 'on' in cluster_switch:
-                trace.update(cluster=dict(
-                    enabled=True,
-                    maxzoom=8,
-                    step=60,
-                    size=20,
-                    color='rgb(0, 123, 255)',
-                    opacity=0.6
-                ))
-            else:
-                # Clustering komplett aus
-                trace.update(cluster=dict(enabled=False))
 
     # Füge den Suchradius hinzu, wenn ein Ort eingegeben wurde
     if center_lat is not None and center_lon is not None and radius != 'unlimited':
@@ -621,7 +741,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
         ['name', 'year', 'formatted_mass', 'recclass', 'country']
     ].to_dict('records')
 
-    return fig, stats, table_data 
+    return fig, stats, table_data, dash.no_update
 
 @app.callback(
     [Output('mass-slider', 'value'),
@@ -697,6 +817,7 @@ def sync_year_inputs(slider_value, min_year, max_year):
     label = f"{int(slider_value[0])} – {int(slider_value[1])}"
     
     return slider_value, slider_value[0], slider_value[1], label
+
 
 if __name__ == '__main__':
     app.run(debug=True)
