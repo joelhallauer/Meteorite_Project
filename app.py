@@ -84,10 +84,10 @@ app.layout = html.Div([
             html.H4("Karte:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
             dcc.Tabs(
                 id="map-tabs",
-                value="Punktekarte",
+                value="Punktekarte",  # Standardwert
                 children=[
                     dcc.Tab(label="Punktekarte", value="Punktekarte"),
-                    dcc.Tab(label="Heatmap",      value="Heatmap"),
+                    dcc.Tab(label="Heatmap", value="Heatmap"),
                 ],
                 style={'marginBottom': '15px'}
             ),
@@ -299,7 +299,7 @@ def reset_location_inputs(n_clicks):
      Input('mass-slider',   'value'),
      Input('year-slider',   'value'),
      Input('map-tabs',      'value'),
-     Input('cluster-switch','value'),      # neu
+     Input('cluster-switch','value'),
      Input('meteor-table',  'active_cell')],
     [State('location-input','value'),
      State('radius-dropdown','value')]
@@ -489,14 +489,15 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
             filtered_df,
             lat="reclat",
             lon="reclong",
-            z="mass",
-            radius=10,
+            radius=15,  # Radius für die Clusterbildung (in Pixeln)
             opacity=0.8,
             mapbox_style="carto-positron",
-            zoom=1.5,
-            center=map_center
+            zoom=zoom_level,
+            center=map_center,
+            color_continuous_scale="Viridis",  # Farbskala für die Dichte
         )
-    else:  # Punktekarte
+        
+    elif map_type == 'Punktekarte':  # Sicherstellen, dass dieser Wert korrekt geprüft wird
         fig = px.scatter_mapbox(
             filtered_df,
             lat="reclat",
@@ -526,6 +527,16 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                 "country": "Land"
             }
         )
+    else:
+        # Fallback für unerwartete Werte
+        fig = px.scatter_mapbox(
+            pd.DataFrame(columns=["reclat", "reclong"]),
+            lat="reclat",
+            lon="reclong",
+            zoom=1,
+            mapbox_style="carto-positron",
+            title="Keine Ergebnisse gefunden"
+        )
 
         # Customizing hover template to show friendlier labels with country information
         fig.update_traces(
@@ -547,15 +558,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
         mapbox=dict(
             center=map_center,
             zoom=zoom_level
-        ),
-        coloraxis_colorbar=dict(
-            title="Fundjahr",
-            thicknessmode="pixels",
-            thickness=20,
-            len=0.6,
-            yanchor="middle",
-            y=0.5
-        ),
+        )
     )
 
     # Marker-Clustering nur wenn Switch angehakt
