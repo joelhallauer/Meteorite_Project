@@ -72,9 +72,26 @@ app.layout = html.Div([
                     {"name": "Land", "id": "country"},
                 ],
                 page_size=10,
-                row_selectable='single',
-                style_table={'height': '35vh', 'overflowY': 'auto', 'marginTop': '8px'},
-                style_cell={'fontFamily': 'Arial', 'fontSize': '12px', 'padding': '3px'},
+                style_table={
+                    'height': '35vh',
+                    'overflowY': 'auto',
+                    'marginTop': '8px',
+                    'tableLayout': 'fixed',    # wichtig für feste Spaltenbreite
+                },
+                style_cell={
+                    'fontFamily': 'Arial',
+                    'fontSize': '12px',
+                    'padding': '3px',
+                    'textAlign': 'left',
+                    # jede Spalte genau gleich breit
+                    'width': '20%',
+                    'minWidth': '20%',
+                    'maxWidth': '20%',
+                    # bei langen Einträgen nichts verschieben lassen
+                    'whiteSpace': 'normal',
+                    'overflow': 'hidden',
+                    'textOverflow': 'ellipsis',
+                },
             ),
         ], style={'flex': '75%', 'padding': '10px',          # bleibt linker Bereich
                 'display': 'flex', 'flexDirection': 'column'}),
