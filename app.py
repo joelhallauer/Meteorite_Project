@@ -346,16 +346,88 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                 if coords:
                     center_lat, center_lon = coords
                     map_center = dict(lat=center_lat, lon=center_lon)
-                    zoom_level = 5
+                    zoom_level=5
 
                     # Filter meteorites based on distance
                     if radius != 'unlimited':
                         radius_km = float(radius)
-                        filtered_df['distance'] = filtered_df.apply(
-                            lambda row: geodesic((center_lat, center_lon), (row['reclat'], row['reclong'])).kilometers,
-                            axis=1
-                        )
+                        # Dynamischen Zoom basierend auf dem Radius setzen
+                        # Kleinere Radien benötigen höheren Zoom
+                        if radius_km <= 50:
+                            zoom_level = 8
+                        elif radius_km <= 100:
+                            zoom_level = 7
+                        elif radius_km <= 200:
+                            zoom_level = 6
+                        elif radius_km <= 500:
+                            zoom_level = 4
+                        else:  # 1000 km und mehr
+                            zoom_level = 3
+                            
+                        # Vektorisierte Distanzberechnung
+                        lat1, lon1 = np.radians(center_lat), np.radians(center_lon)
+                        lat2, lon2 = np.radians(filtered_df['reclat']), np.radians(filtered_df['reclong'])
+                        
+                        # Differenzen berechnen
+                        dlat = lat2 - lat1
+                        dlon = lon2 - lon1
+                        
+                        # Haversine-Formel
+                        a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
+                        c = 2 * np.arcsin(np.sqrt(a))
+                        # Erdradius in Kilometern
+                        r = 6371
+                        # Distanz in Kilometern
+                        filtered_df['distance'] = r * c
+                        
+                        # Filtern auf Basis der Distanz
+                        filtered_df_before = len(filtered_df)
                         filtered_df = filtered_df[filtered_df['distance'] <= radius_km]
+                        
+                        # Prüfen ob Meteoriten gefunden wurden
+                        if len(filtered_df) == 0 and filtered_df_before > 0:
+                            empty_fig = px.scatter_mapbox(
+                                pd.DataFrame([{'reclat': center_lat, 'reclong': center_lon}]),
+                                lat="reclat",
+                                lon="reclong",
+                                zoom=zoom_level,
+                                mapbox_style="carto-positron"
+                            )
+                            empty_fig.update_layout(height=600, margin={"r": 0, "t": 0, "l": 0, "b": 0})
+                            
+                            # Zeige den Suchkreis trotzdem an
+                            circle_lats, circle_lons = [], []        
+                            for bearing in np.arange(0, 360, 1):
+                                point = geodesic(kilometers=radius_km).destination(
+                                    (center_lat, center_lon),
+                                    bearing
+                                )
+                                circle_lats.append(point.latitude)
+                                circle_lons.append(point.longitude)
+
+                            empty_fig.add_trace(go.Scattermapbox(
+                                lat=circle_lats,
+                                lon=circle_lons,
+                                mode='lines',
+                                fill='toself',
+                                fillcolor='rgba(255,0,0,0.15)',
+                                line=dict(color='red', width=2),
+                                name='Suchradius'
+                            ))
+                            
+                            error_message = [
+                                html.Div([
+                                    html.P(f"Keine Meteoriten im Umkreis von {radius_km} km um {location} gefunden!", 
+                                          style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '16px'}),
+                                    html.P("Bitte versuche einen größeren Suchradius oder einen anderen Ort.")
+                                ], style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#ffeeee', 
+                                          'border': '1px solid #ff0000', 'borderRadius': '5px'})
+                            ]
+                            return empty_fig, error_message, []
+                    else:
+                        # Wenn 'unlimited' ausgewählt wurde, nutze einen mittleren Zoom
+                        zoom_level = 5
+                        
             except Exception as e:
                 print(f"Geocoding error: {e}")
 
