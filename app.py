@@ -687,22 +687,38 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
             color_continuous_scale="Viridis",  # Farbskala für die Dichte
         )
     elif button_id == 'nav-dia':
-        return html.Div([
-            html.H2("Diagramm-Ansicht", style={'textAlign': 'center'}),
-            dcc.Graph(
-                figure={
-                    'data': [{
-                        'x': [1, 2, 3],
-                        'y': [4, 1, 2],
-                        'type': 'bar'
-                    }],
-                    'layout': {
-                        'title': 'Platzhalter für Diagramm'
-                    }
-                },
-                style={'height': '600px'}
-            )
-        ])
+        # Count meteorites by country
+        country_counts = filtered_df.groupby('country').size().reset_index(name='count')
+        
+        # Sort by count in descending order for better visualization
+        country_counts = country_counts.sort_values('count', ascending=False)
+        
+        # Limit to top 20 countries if there are too many
+        if len(country_counts) > 20:
+            country_counts = country_counts.head(20)
+            title = "Top 20 Länder nach Meteoritenfunden"
+        else:
+            title = "Länder nach Meteoritenfunden"
+            
+        fig = px.bar(
+            country_counts,
+            x="country",
+            y="count",
+            title=title,
+            labels={
+                "country": "Land",
+                "count": "Anzahl der Meteoriten"
+            },
+            # Removed color="count" and color_continuous_scale parameters
+            color_discrete_sequence=["#9c27b0"]  # Use a single color matching the button color
+        )
+        
+        # Update layout for better readability of country names
+        fig.update_layout(
+            xaxis=dict(tickangle=-45),
+            height=600,
+            margin={"r": 20, "t": 50, "l": 20, "b": 100}
+        )
 
     # Layout optimization
     fig.update_layout(
