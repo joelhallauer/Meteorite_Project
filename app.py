@@ -607,6 +607,7 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
             color="year",
             size="size_for_plot",
             size_max=15,
+            color_continuous_scale="Viridis",
             hover_name="name",
             hover_data={
                 "year": True,
@@ -619,7 +620,10 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                 "size_for_plot": False
             },
             opacity=0.7,
-            mapbox_style="carto-positron"
+            mapbox_style="carto-positron",
+            labels={
+                "year": "Fundjahr"
+            }
         )
         # Cluster immer aktivieren
         for trace in fig.data:
@@ -632,6 +636,18 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                     color='rgb(0, 123, 255)',
                     opacity=0.6
                 ))
+        # Customizing hover template to show friendlier labels with country information
+        fig.update_traces(
+            hovertemplate="<b>%{hovertext}</b><br>" +
+                          "Fundjahr: %{customdata[0]}<br>" +
+                          "Land: %{customdata[4]}<br>" +
+                          "Breitengrad: %{lat}<br>" +
+                          "Längengrad: %{lon}<br>" +
+                          "Masse: %{customdata[1]}<br>" +
+                          "Meteoritenklasse: %{customdata[2]}<br>" +
+                          "Beobachteter Fall: %{customdata[3]}<br>",
+            marker=dict(sizemode="area")
+        )
     elif button_id == 'nav-pun':
         fig = px.scatter_mapbox(
             filtered_df,
@@ -655,14 +671,10 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
             opacity=0.7,
             mapbox_style="carto-positron",
             labels={
-                "year": "Fundjahr",
-                "formatted_mass": "Masse",
-                "recclass": "Meteoritenklasse",
-                "fall_de": "Beobachteter Fall",
-                "country": "Land"
+                "year": "Fundjahr"
             }
         )
-         # Customizing hover template to show friendlier labels with country information
+        # Customizing hover template to show friendlier labels with country information
         fig.update_traces(
             hovertemplate="<b>%{hovertext}</b><br>" +
                           "Fundjahr: %{customdata[0]}<br>" +
