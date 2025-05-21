@@ -1,5 +1,5 @@
 import dash
-from dash import html, dcc, Input, Output, State, dash_table
+from dash import html, dcc, Input, Output, State, dash_table, no_update
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -55,11 +55,11 @@ def geocode_location(place: str):
 # --- Layout der App ---
 app.layout = html.Div([
     html.H1("Impact Atlas - Meteoriten weltweit", style={'textAlign': 'center', 'fontFamily': 'Arial'}),
-    
+
     # Neue Navigationsleiste
     html.Div([
         html.Button(
-            "Cluster Karte", 
+            "Cluster Karte",
             id='nav-clu',
             className='nav-button',
             n_clicks=1,  # Set an initial click to make this the default
@@ -77,7 +77,7 @@ app.layout = html.Div([
             }
         ),
         html.Button(
-            "Punktekarte", 
+            "Punktekarte",
             id='nav-pun',
             className='nav-button',
             n_clicks=0,
@@ -95,7 +95,7 @@ app.layout = html.Div([
             }
         ),
         html.Button(
-            "Heatmap", 
+            "Heatmap",
             id='nav-hea',
             className='nav-button',
             n_clicks=0,
@@ -113,7 +113,7 @@ app.layout = html.Div([
             }
         ),
         html.Button(
-            "Diagramm", 
+            "Diagramm",
             id='nav-dia',
             className='nav-button',
             n_clicks=0,
@@ -137,15 +137,15 @@ app.layout = html.Div([
         'gap': '10px',
         'padding': '0 20px'
     }),
-    
+
     html.Div(id="main-container", children=[
-        
-        # Kartenbereich
-        html.Div([
+
+        # Kartenbereich und Tabelle
+        html.Div(id="map-and-table-container", children=[
             dcc.Graph(id='meteor-map', config={"scrollZoom": True},
                     style={'height': '50vh'}),
 
-            dash_table.DataTable(                      # Tabelle direkt DARUNTER
+            dash_table.DataTable(
                 id='meteor-table',
                 columns=[
                     {"name": "Name", "id": "name"},
@@ -159,25 +159,40 @@ app.layout = html.Div([
                     'height': '35vh',
                     'overflowY': 'auto',
                     'marginTop': '8px',
-                    'tableLayout': 'fixed',    # wichtig für feste Spaltenbreite
+                    'tableLayout': 'fixed',
                 },
                 style_cell={
                     'fontFamily': 'Arial',
                     'fontSize': '12px',
                     'padding': '3px',
                     'textAlign': 'left',
-                    # jede Spalte genau gleich breit
                     'width': '20%',
                     'minWidth': '20%',
                     'maxWidth': '20%',
-                    # bei langen Einträgen nichts verschieben lassen
                     'whiteSpace': 'normal',
                     'overflow': 'hidden',
                     'textOverflow': 'ellipsis',
                 },
             ),
-        ], style={'flex': '75%', 'padding': '10px',          # bleibt linker Bereich
-                'display': 'flex', 'flexDirection': 'column'}),
+        ], style={ # Standard-Style: sichtbar, wenn App geladen wird
+            'flex': '75%', 'padding': '10px',
+            'display': 'flex', 'flexDirection': 'column'
+        }),
+
+        # Bereich für die Diagramme (initially hidden)
+        html.Div(id="diagram-container", children=[
+            html.H3("Meteoritenfunde pro Land", style={'textAlign': 'center', 'marginTop': '10px'}),
+            dcc.Graph(id='country-diagram-graph', config={"scrollZoom": True},
+                      style={'height': '40vh', 'width': '100%', 'marginBottom': '20px'}), # Etwas kleiner
+
+            html.H3("Meteoritenfunde pro Meteoritenklasse", style={'textAlign': 'center', 'marginTop': '10px'}),
+            dcc.Graph(id='class-diagram-graph', config={"scrollZoom": True},
+                      style={'height': '40vh', 'width': '100%'})
+        ], style={ # Standard-Style: versteckt
+            'flex': '75%', 'padding': '10px',
+            'display': 'none', 'flexDirection': 'column'
+        }),
+
 
         # Steuerungsbereich
         html.Div([
@@ -187,7 +202,7 @@ app.layout = html.Div([
                     style={'textAlign':'center', 'fontSize':'12px', 'marginTop':'-6px'}),
             dcc.RangeSlider(
                 id='mass-slider',
-                min=df['log_mass'].min(),      
+                min=df['log_mass'].min(),
                 max=df['log_mass'].max(),
                 value=[df['log_mass'].min(), df['log_mass'].max()],
                 marks={
@@ -365,7 +380,7 @@ app.layout = html.Div([
 def reset_location_inputs(n_clicks):
     if n_clicks:
         return '', 'unlimited'
-    return dash.no_update
+    return no_update
 
 # Add client-side callback for default map on app load
 app.clientside_callback(
@@ -383,75 +398,66 @@ app.clientside_callback(
 )
 
 @app.callback(
-    [Output('meteor-map',   'figure'),
-     Output('stats-container', 'children'),
+    [Output('meteor-map', 'figure'),
+     Output('country-diagram-graph', 'figure'), # Output für Länder-Diagramm
+     Output('class-diagram-graph', 'figure'),   # Output für Klassen-Diagramm
      Output('meteor-table', 'data'),
-     Output('main-container', 'children')],
-    [Input('fall-filter',   'value'),
-     Input('class-filter',  'value'),
+     Output('map-and-table-container', 'style'), # Output für Sichtbarkeit des Karten-Containers
+     Output('diagram-container', 'style'),       # Output für Sichtbarkeit des Diagramm-Containers
+     Output('stats-container', 'children')],
+    [Input('fall-filter', 'value'),
+     Input('class-filter', 'value'),
      Input('search-button', 'n_clicks'),
-     Input('reset-button',  'n_clicks'),
-     Input('mass-slider',   'value'),
-     Input('year-slider',   'value'),
-     Input('meteor-table',  'active_cell'),
+     Input('reset-button', 'n_clicks'),
+     Input('mass-slider', 'value'),
+     Input('year-slider', 'value'),
      Input('nav-clu', 'n_clicks'),
      Input('nav-pun', 'n_clicks'),
      Input('nav-hea', 'n_clicks'),
-     Input('nav-dia', 'n_clicks')],
-    [State('location-input','value'),
-     State('radius-dropdown','value'),
-     State('main-container', 'children')]
+     Input('nav-dia', 'n_clicks'),
+     Input('meteor-table', 'active_cell')], # active_cell als Input
+    [State('location-input', 'value'),
+     State('radius-dropdown', 'value')]
 )
-def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
-               selected_mass, selected_year, active_cell, 
-               clu_clicks, pun_clicks, hea_clicks, dia_clicks,
-               location, radius, main_container):
+def update_content(selected_falls, selected_classes, search_clicks, reset_clicks,
+                   selected_mass, selected_year,
+                   clu_clicks, pun_clicks, hea_clicks, dia_clicks,
+                   active_cell, # active_cell hier als Input
+                   location, radius):
 
     # Copy the DataFrame
     filtered_df = df.copy()
 
-    # Slider gibt log10(mass+1) zurück → zurückrechnen
+    # --- FILTERING LOGIC (unverändert) ---
     if selected_mass:
         log_min, log_max = selected_mass
         min_mass = 10**log_min - 1
         max_mass = 10**log_max - 1
         filtered_df = filtered_df[(filtered_df['mass'] >= min_mass) &
                                 (filtered_df['mass'] <= max_mass)]
-    # Filter by meteorite type
     if selected_classes:
         filtered_df = filtered_df[filtered_df["recclass"].isin(selected_classes)]
-
-    # Filter by year range
     if selected_year:
         min_year, max_year = selected_year
         filtered_df = filtered_df[(filtered_df['year'] >= min_year) & (filtered_df['year'] <= max_year)]
-
-    # Filter by fall status (Fall/Found)
     if selected_falls:
         filtered_df = filtered_df[filtered_df["fall"].isin(selected_falls)]
 
-    # Location-based filtering
     center_lat, center_lon = None, None
-    zoom_level = 1.5  # Default zoom level
-    map_center = dict(lat=20, lon=0)  # Default map center
+    zoom_level = 1.5
+    map_center = dict(lat=20, lon=0)
 
-    # Check if the search button or reset button was clicked
     ctx = dash.callback_context
     if ctx.triggered and ctx.triggered[0]['prop_id'] == 'search-button.n_clicks':
         if location:
             try:
-                # Caching-aware Geocoding
                 coords = geocode_location(location)
                 if coords:
                     center_lat, center_lon = coords
                     map_center = dict(lat=center_lat, lon=center_lon)
                     zoom_level=5
-
-                    # Filter meteorites based on distance
                     if radius != 'unlimited':
                         radius_km = float(radius)
-                        # Dynamischen Zoom basierend auf dem Radius setzen
-                        # Kleinere Radien benötigen höheren Zoom
                         if radius_km <= 50:
                             zoom_level = 8
                         elif radius_km <= 100:
@@ -460,30 +466,23 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                             zoom_level = 6
                         elif radius_km <= 500:
                             zoom_level = 4
-                        else:  # 1000 km und mehr
+                        else:
                             zoom_level = 3
-                            
-                        # Vektorisierte Distanzberechnung
+
                         lat1, lon1 = np.radians(center_lat), np.radians(center_lon)
                         lat2, lon2 = np.radians(filtered_df['reclat']), np.radians(filtered_df['reclong'])
-                        
-                        # Differenzen berechnen
+
                         dlat = lat2 - lat1
                         dlon = lon2 - lon1
-                        
-                        # Haversine-Formel
+
                         a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
                         c = 2 * np.arcsin(np.sqrt(a))
-                        # Erdradius in Kilometern
                         r = 6371
-                        # Distanz in Kilometern
                         filtered_df['distance'] = r * c
-                        
-                        # Filtern auf Basis der Distanz
+
                         filtered_df_before = len(filtered_df)
                         filtered_df = filtered_df[filtered_df['distance'] <= radius_km]
-                        
-                        # Prüfen ob Meteoriten gefunden wurden
+
                         if len(filtered_df) == 0 and filtered_df_before > 0:
                             empty_fig = px.scatter_mapbox(
                                 pd.DataFrame([{'reclat': center_lat, 'reclong': center_lon}]),
@@ -493,48 +492,35 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
                                 mapbox_style="carto-positron"
                             )
                             empty_fig.update_layout(height=600, margin={"r": 0, "t": 0, "l": 0, "b": 0})
-                            
-                            # Zeige den Suchkreis trotzdem an
-                            circle_lats, circle_lons = [], []        
+                            circle_lats, circle_lons = [], []
                             for bearing in np.arange(0, 360, 1):
                                 point = geodesic(kilometers=radius_km).destination(
-                                    (center_lat, center_lon),
-                                    bearing
+                                    (center_lat, center_lon), bearing
                                 )
                                 circle_lats.append(point.latitude)
                                 circle_lons.append(point.longitude)
-
                             empty_fig.add_trace(go.Scattermapbox(
-                                lat=circle_lats,
-                                lon=circle_lons,
-                                mode='lines',
-                                fill='toself',
-                                fillcolor='rgba(255,0,0,0.15)',
-                                line=dict(color='red', width=2),
-                                name='Suchradius'
+                                lat=circle_lats, lon=circle_lons, mode='lines', fill='toself',
+                                fillcolor='rgba(255,0,0,0.15)', line=dict(color='red', width=2), name='Suchradius'
                             ))
-                            
-                            error_message = [
-                                html.Div([
-                                    html.P(f"Keine Meteoriten im Umkreis von {radius_km} km um {location} gefunden!", 
+                            error_message = html.Div([
+                                html.P(f"Keine Meteoriten im Umkreis von {radius_km} km um {location} gefunden!",
                                           style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '16px'}),
-                                    html.P("Bitte versuche einen größeren Suchradius oder einen anderen Ort.")
-                                ], style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#ffeeee', 
+                                html.P("Bitte versuche einen größeren Suchradius oder einen anderen Ort.")
+                            ], style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#ffeeee',
                                           'border': '1px solid #ff0000', 'borderRadius': '5px'})
-                            ]
-                            return empty_fig, error_message, [], dash.no_update
-                    else:
-                        # Wenn 'unlimited' ausgewählt wurde, nutze einen mittleren Zoom
-                        zoom_level = 5
-                        
+                            # Bei Fehlermeldung: Karte sichtbar, Diagramme unsichtbar
+                            return empty_fig, go.Figure(), go.Figure(), no_update, \
+                                {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'}, \
+                                {'display': 'none'}, \
+                                error_message
             except Exception as e:
                 print(f"Geocoding error: {e}")
 
-    # Remove the temporary 'distance' column if it exists
     if 'distance' in filtered_df.columns:
         filtered_df = filtered_df.drop(columns=['distance'])
 
-    # Handle empty results
+    # Handle empty results (for all views)
     if filtered_df.empty:
         empty_fig = px.scatter_mapbox(
             pd.DataFrame(columns=["reclat", "reclong"]),
@@ -546,230 +532,253 @@ def update_map(selected_falls, selected_classes, search_clicks, reset_clicks,
         )
         empty_fig.update_layout(height=800)
         error_message = html.P("Keine Daten verfügbar für die aktuelle Auswahl.", style={'color': 'red'})
-        return empty_fig, error_message, [], dash.no_update
+        # Bei leeren Ergebnissen: Karte sichtbar, Diagramme unsichtbar
+        return empty_fig, go.Figure(), go.Figure(), no_update, \
+            {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'}, \
+            {'display': 'none'}, \
+            error_message
 
     # Create statistics
     avg_mass = filtered_df['mass'].mean()
     max_mass = filtered_df['mass'].max()
     min_mass = filtered_df['mass'].min()
-
-    # Formatierte Masse für die Statistik nutzen
     stats = [
         html.P(f"Anzahl Meteoriten: {len(filtered_df)}", style={'margin': '5px 0'}),
         html.P(f"Durchschnittliche Masse: {format_mass(avg_mass)}", style={'margin': '5px 0'}),
         html.P(f"Grösste Masse: {format_mass(max_mass)}", style={'margin': '5px 0'}),
         html.P(f"Kleinste Masse: {format_mass(min_mass)}", style={'margin': '5px 0'})
     ]
-
-    # Add year statistics only if valid year values exist
     if not filtered_df['year'].isna().all():
         stats.append(
             html.P(f"Zeitraum: {int(filtered_df['year'].min())} - {int(filtered_df['year'].max())}", style={'margin': '5px 0'})
         )
 
-    # Click-Zoom: falls eine Tabellenzeile aktiv ist
-    if active_cell and 'row' in active_cell:
-        idx = active_cell['row']
-        if 0 <= idx < len(filtered_df):
-            sel = filtered_df.iloc[idx]
-            map_center = dict(lat=sel['reclat'], lon=sel['reclong'])
-            zoom_level = 6
-
     # Determine which view to show
     ctx1 = dash.callback_context
     if not ctx1.triggered:
-        # Default to cluster view on initial load
         button_id = "nav-clu"
     else:
         button_id = ctx1.triggered[0]['prop_id'].split('.')[0]
-        
-        # If it's not a navigation button, use the current view
         if button_id not in ['nav-clu', 'nav-pun', 'nav-hea', 'nav-dia']:
-            button_ids = [prop_id.split('.')[0] for prop_id in [
-                'nav-clu.n_clicks', 'nav-pun.n_clicks', 
-                'nav-hea.n_clicks', 'nav-dia.n_clicks'
-            ]]
+            button_ids = ['nav-clu', 'nav-pun', 'nav-hea', 'nav-dia']
             clicks = [clu_clicks or 0, pun_clicks or 0, hea_clicks or 0, dia_clicks or 0]
-            # Get the button with the most clicks
             if any(clicks):
                 max_clicks_idx = clicks.index(max(clicks))
                 button_id = button_ids[max_clicks_idx]
             else:
-                button_id = "nav-clu"  # Default
+                button_id = "nav-clu"
 
 
-    # Erstelle die richtige Karte basierend auf dem Kartentyp
-    if button_id == 'nav-clu':
-        fig = px.scatter_mapbox(
-            filtered_df,
-            lat="reclat",
-            lon="reclong",
-            color="year",
-            size="size_for_plot",
-            size_max=15,
-            color_continuous_scale="Viridis",
-            hover_name="name",
-            hover_data={
-                "year": True,
-                "formatted_mass": True,
-                "recclass": True,
-                "fall_de": True,
-                "country": True,
-                "mass": False,
-                "fall": False,
-                "size_for_plot": False
-            },
-            opacity=0.7,
-            mapbox_style="carto-positron",
-            labels={
-                "year": "Fundjahr"
-            }
-        )
-        # Cluster immer aktivieren
-        for trace in fig.data:
-            if isinstance(trace, go.Scattermapbox):
-                trace.update(cluster=dict(
-                    enabled=True,
-                    maxzoom=8,
-                    step=60,
-                    size=20,
-                    color='rgb(0, 123, 255)',
-                    opacity=0.6
-                ))
-        # Customizing hover template to show friendlier labels with country information
-        fig.update_traces(
-            hovertemplate="<b>%{hovertext}</b><br>" +
-                          "Fundjahr: %{customdata[0]}<br>" +
-                          "Land: %{customdata[4]}<br>" +
-                          "Breitengrad: %{lat}<br>" +
-                          "Längengrad: %{lon}<br>" +
-                          "Masse: %{customdata[1]}<br>" +
-                          "Meteoritenklasse: %{customdata[2]}<br>" +
-                          "Beobachteter Fall: %{customdata[3]}<br>",
-            marker=dict(sizemode="area")
-        )
-    elif button_id == 'nav-pun':
-        fig = px.scatter_mapbox(
-            filtered_df,
-            lat="reclat",
-            lon="reclong",
-            color="year",
-            size="size_for_plot",
-            size_max=15,
-            color_continuous_scale="Viridis",
-            hover_name="name",
-            hover_data={
-                "year": True,
-                "formatted_mass": True,
-                "recclass": True,
-                "fall_de": True,
-                "country": True,
-                "mass": False,
-                "fall": False,
-                "size_for_plot": False
-            },
-            opacity=0.7,
-            mapbox_style="carto-positron",
-            labels={
-                "year": "Fundjahr"
-            }
-        )
-        # Customizing hover template to show friendlier labels with country information
-        fig.update_traces(
-            hovertemplate="<b>%{hovertext}</b><br>" +
-                          "Fundjahr: %{customdata[0]}<br>" +
-                          "Land: %{customdata[4]}<br>" +
-                          "Breitengrad: %{lat}<br>" +
-                          "Längengrad: %{lon}<br>" +
-                          "Masse: %{customdata[1]}<br>" +
-                          "Meteoritenklasse: %{customdata[2]}<br>" +
-                          "Beobachteter Fall: %{customdata[3]}<br>",
-            marker=dict(sizemode="area")
-        )
-    elif button_id == 'nav-hea':
-        fig = px.density_mapbox(
-            filtered_df,
-            lat="reclat",
-            lon="reclong",
-            radius=15,  # Radius für die Clusterbildung (in Pixeln)
-            opacity=0.8,
-            mapbox_style="carto-positron",
-            zoom=zoom_level,
-            center=map_center,
-            color_continuous_scale="Viridis",  # Farbskala für die Dichte
-        )
-    elif button_id == 'nav-dia':
-        # Count meteorites by country
+    # Initialisiere die Figuren
+    map_fig = go.Figure()
+    country_diagram_fig = go.Figure()
+    class_diagram_fig = go.Figure()
+
+    # Bestimme die anzuzeigenden Container-Styles
+    map_and_table_container_style = {} # Wird unten überschrieben
+    diagram_container_style = {}       # Wird unten überschrieben
+
+
+    # Erstelle die richtige Karte/Diagramm basierend auf dem Kartentyp
+    if button_id == 'nav-dia':
+        map_and_table_container_style = {'display': 'none'} # Karte und Tabelle verstecken
+        diagram_container_style = {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'} # Diagramme anzeigen
+
+        # Diagramm für Länder
         country_counts = filtered_df.groupby('country').size().reset_index(name='count')
-        
-        # Sort by count in descending order for better visualization
         country_counts = country_counts.sort_values('count', ascending=False)
-        
-        # Limit to top 20 countries if there are too many
-        if len(country_counts) > 20:
+        # Optional: Limitiere auf Top N Länder
+        if len(country_counts) > 20: # Beispiel: Top 20 Länder
             country_counts = country_counts.head(20)
-            title = "Top 20 Länder nach Meteoritenfunden"
+            country_title = "Top 20 Länder nach Meteoritenfunden"
         else:
-            title = "Länder nach Meteoritenfunden"
-            
-        fig = px.bar(
+            country_title = "Länder nach Meteoritenfunden"
+
+
+        country_diagram_fig = px.bar(
             country_counts,
             x="country",
             y="count",
-            title=title,
+            title=country_title,
             labels={
                 "country": "Land",
                 "count": "Anzahl der Meteoriten"
             },
-            # Removed color="count" and color_continuous_scale parameters
-            color_discrete_sequence=["#9c27b0"]  # Use a single color matching the button color
+            color_discrete_sequence=["#9c27b0"]
         )
-        
-        # Update layout for better readability of country names
-        fig.update_layout(
+        country_diagram_fig.update_layout(
             xaxis=dict(tickangle=-45),
-            height=600,
+            height=400, # Angepasste Höhe für zwei Diagramme
             margin={"r": 20, "t": 50, "l": 20, "b": 100}
         )
 
-    # Layout optimization
-    fig.update_layout(
-        height=600,
-        margin={"r": 0, "t": 0, "l": 0, "b": 0},
-        mapbox=dict(
-            center=map_center,
-            zoom=zoom_level
+        # Diagramm für Klassen
+        class_counts = filtered_df.groupby('recclass').size().reset_index(name='count')
+        class_counts = class_counts.sort_values('count', ascending=False)
+        # Optional: Limitiere auf Top N Klassen
+        if len(class_counts) > 20: # Beispiel: Top 20 Klassen
+            class_counts = class_counts.head(20)
+            class_title = "Top 20 Meteoritenklassen nach Funden"
+        else:
+            class_title = "Meteoritenklassen nach Funden"
+
+        class_diagram_fig = px.bar(
+            class_counts,
+            x="recclass",
+            y="count",
+            title=class_title,
+            labels={
+                "recclass": "Meteoritenklasse",
+                "count": "Anzahl der Meteoriten"
+            },
+            color_discrete_sequence=["#9c27b0"]
         )
-    )
+        class_diagram_fig.update_layout(
+            xaxis=dict(tickangle=-45),
+            height=400, # Angepasste Höhe für zwei Diagramme
+            margin={"r": 20, "t": 50, "l": 20, "b": 100}
+        )
 
-    # Füge den Suchradius hinzu, wenn ein Ort eingegeben wurde
-    if center_lat is not None and center_lon is not None and radius != 'unlimited':
-        radius_km = float(radius)
+        # Rückgabe für den Diagramm-Modus
+        # meteor-map bekommt eine leere Figur, meteor-table.data no_update
+        return go.Figure(), country_diagram_fig, class_diagram_fig, no_update, \
+            map_and_table_container_style, diagram_container_style, stats
 
-        circle_lats, circle_lons = [], []        
-        for bearing in np.arange(0, 360, 1):
-            point = geodesic(kilometers=radius_km).destination(
-                (center_lat, center_lon),
-                bearing
+    else: # Für Karten-Modi (nav-clu, nav-pun, nav-hea)
+        map_and_table_container_style = {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'} # Karte und Tabelle anzeigen
+        diagram_container_style = {'display': 'none'} # Diagramme verstecken
+
+        # Click-Zoom: falls eine Tabellenzeile aktiv ist (nur für Karten)
+        if active_cell and 'row' in active_cell:
+            idx = active_cell['row']
+            if 0 <= idx < len(filtered_df):
+                sel = filtered_df.iloc[idx]
+                map_center = dict(lat=sel['reclat'], lon=sel['reclong'])
+                zoom_level = 6
+
+        if button_id == 'nav-clu':
+            map_fig = px.scatter_mapbox(
+                filtered_df,
+                lat="reclat",
+                lon="reclong",
+                color="year",
+                size="size_for_plot",
+                size_max=15,
+                color_continuous_scale="Viridis",
+                hover_name="name",
+                hover_data={
+                    "year": True,
+                    "formatted_mass": True,
+                    "recclass": True,
+                    "fall_de": True,
+                    "country": True,
+                    "mass": False,
+                    "fall": False,
+                    "size_for_plot": False
+                },
+                opacity=0.7,
+                mapbox_style="carto-positron",
+                labels={
+                    "year": "Fundjahr"
+                }
             )
-            circle_lats.append(point.latitude)
-            circle_lons.append(point.longitude)
+            for trace in map_fig.data:
+                if isinstance(trace, go.Scattermapbox):
+                    trace.update(cluster=dict(
+                        enabled=True, maxzoom=8, step=60, size=20,
+                        color='rgb(0, 123, 255)', opacity=0.6
+                    ))
+            map_fig.update_traces(
+                hovertemplate="<b>%{hovertext}</b><br>" +
+                              "Fundjahr: %{customdata[0]}<br>" +
+                              "Land: %{customdata[4]}<br>" +
+                              "Breitengrad: %{lat}<br>" +
+                              "Längengrad: %{lon}<br>" +
+                              "Masse: %{customdata[1]}<br>" +
+                              "Meteoritenklasse: %{customdata[2]}<br>" +
+                              "Beobachteter Fall: %{customdata[3]}<br>",
+                marker=dict(sizemode="area")
+            )
+        elif button_id == 'nav-pun':
+            map_fig = px.scatter_mapbox(
+                filtered_df,
+                lat="reclat",
+                lon="reclong",
+                color="year",
+                size="size_for_plot",
+                size_max=15,
+                color_continuous_scale="Viridis",
+                hover_name="name",
+                hover_data={
+                    "year": True,
+                    "formatted_mass": True,
+                    "recclass": True,
+                    "fall_de": True,
+                    "country": True,
+                    "mass": False,
+                    "fall": False,
+                    "size_for_plot": False
+                },
+                opacity=0.7,
+                mapbox_style="carto-positron",
+                labels={
+                    "year": "Fundjahr"
+                }
+            )
+            map_fig.update_traces(
+                hovertemplate="<b>%{hovertext}</b><br>" +
+                              "Fundjahr: %{customdata[0]}<br>" +
+                              "Land: %{customdata[4]}<br>" +
+                              "Breitengrad: %{lat}<br>" +
+                              "Längengrad: %{lon}<br>" +
+                              "Masse: %{customdata[1]}<br>" +
+                              "Meteoritenklasse: %{customdata[2]}<br>" +
+                              "Beobachteter Fall: %{customdata[3]}<br>",
+                marker=dict(sizemode="area")
+            )
+        elif button_id == 'nav-hea':
+            map_fig = px.density_mapbox(
+                filtered_df,
+                lat="reclat",
+                lon="reclong",
+                radius=15,
+                opacity=0.8,
+                mapbox_style="carto-positron",
+                zoom=zoom_level,
+                center=map_center,
+                color_continuous_scale="Viridis",
+            )
 
-        fig.add_trace(go.Scattermapbox(
-            lat=circle_lats,
-            lon=circle_lons,
-            mode='lines',
-            fill='toself',
-            fillcolor='rgba(255,0,0,0.15)',
-            line=dict(color='red', width=2),
-            name='Suchradius'
-        ))
+        # Layout optimization for map_fig
+        map_fig.update_layout(
+            height=600,
+            margin={"r": 0, "t": 0, "l": 0, "b": 0},
+            mapbox=dict(
+                center=map_center,
+                zoom=zoom_level
+            )
+        )
 
-    table_data = filtered_df[
-        ['name', 'year', 'formatted_mass', 'recclass', 'country']
-    ].to_dict('records')
+        # Add search radius to map_fig if applicable
+        if center_lat is not None and center_lon is not None and radius != 'unlimited':
+            radius_km = float(radius)
+            circle_lats, circle_lons = [], []
+            for bearing in np.arange(0, 360, 1):
+                point = geodesic(kilometers=radius_km).destination((center_lat, center_lon), bearing)
+                circle_lats.append(point.latitude)
+                circle_lons.append(point.longitude)
+            map_fig.add_trace(go.Scattermapbox(
+                lat=circle_lats, lon=circle_lons, mode='lines', fill='toself',
+                fillcolor='rgba(255,0,0,0.15)', line=dict(color='red', width=2), name='Suchradius'
+            ))
 
-    return fig, stats, table_data, dash.no_update
+        table_data = filtered_df[['name', 'year', 'formatted_mass', 'recclass', 'country']].to_dict('records')
+
+        # Rückgabe für den Karten-Modus
+        # country-diagram-graph und class-diagram-graph bekommen leere Figuren
+        return map_fig, go.Figure(), go.Figure(), table_data, \
+            map_and_table_container_style, diagram_container_style, stats
+
 
 @app.callback(
     [Output('mass-slider', 'value'),
@@ -796,20 +805,21 @@ def sync_mass_inputs(slider_value, min_mass, max_mass):
         return slider_value, min_m, max_m, label
 
     elif trigger == 'min-mass-input':
-        min_mass = min(min_mass, max_mass)
-        label = f"{int(min_mass):,} g – {int(max_mass):,} g"
-        return [np.log10(min_mass + 1), np.log10(max_mass + 1)], \
-               min_mass, max_mass, label
+        current_max_mass = max_mass if max_mass is not None else df['mass'].max()
+        min_mass = min(min_mass, current_max_mass)
+        label = f"{int(min_mass):,} g – {int(current_max_mass):,} g"
+        return [np.log10(min_mass + 1), np.log10(current_max_mass + 1)], \
+               min_mass, current_max_mass, label
 
     elif trigger == 'max-mass-input':
-        max_mass = max(max_mass, min_mass)
-        label = f"{int(min_mass):,} g – {int(max_mass):,} g"
-        return [np.log10(min_mass + 1), np.log10(max_mass + 1)], \
-               min_mass, max_mass, label
+        current_min_mass = min_mass if min_mass is not None else df['mass'].min()
+        max_mass = max(max_mass, current_min_mass)
+        label = f"{int(current_min_mass):,} g – {int(max_mass):,} g"
+        return [np.log10(current_min_mass + 1), np.log10(max_mass + 1)], \
+               current_min_mass, max_mass, label
 
-    # Fallback
-    label = f"{int(10**slider_value[0])} g – {int(10**slider_value[1]):,} g"
-    return slider_value, 10**slider_value[0], 10**slider_value[1], label
+    label = f"{int(10**slider_value[0]-1):,} g – {int(10**slider_value[1]-1):,} g"
+    return slider_value, 10**slider_value[0]-1, 10**slider_value[1]-1, label
 
 @app.callback(
     [Output('year-slider', 'value'),
@@ -821,7 +831,6 @@ def sync_mass_inputs(slider_value, min_mass, max_mass):
      Input('max-year-input', 'value')]
 )
 def sync_year_inputs(slider_value, min_year, max_year):
-    # Wenn der Slider geändert wird, aktualisiere die Eingabefelder
     ctx = dash.callback_context
     if not ctx.triggered:
         label = f"{int(slider_value[0])} – {int(slider_value[1])}"
@@ -833,17 +842,18 @@ def sync_year_inputs(slider_value, min_year, max_year):
         label = f"{int(slider_value[0])} – {int(slider_value[1])}"
         return slider_value, slider_value[0], slider_value[1], label
     elif trigger_id == 'min-year-input':
-        label = f"{int(min_year)} – {int(max_year)}"
-        min_year = min(min_year, max_year)
-        return [min_year, max_year], min_year, max_year, label
+        current_max_year = max_year if max_year is not None else df['year'].max()
+        min_year = min(min_year, current_max_year)
+        label = f"{int(min_year)} – {int(current_max_year)}"
+        return [min_year, current_max_year], min_year, current_max_year, label
     elif trigger_id == 'max-year-input':
-        label = f"{int(min_year)} – {int(max_year)}"
-        max_year = max(max_year, min_year)
-        return [min_year, max_year], min_year, max_year, label
+        current_min_year = min_year if min_year is not None else df['year'].min()
+        max_year = max(max_year, current_min_year)
+        label = f"{int(current_min_year)} – {int(max_year)}"
+        return [current_min_year, max_year], current_min_year, max_year, label
 
-    # Fallback
     label = f"{int(slider_value[0])} – {int(slider_value[1])}"
-    
+
     return slider_value, slider_value[0], slider_value[1], label
 
 
