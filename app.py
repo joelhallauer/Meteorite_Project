@@ -256,14 +256,14 @@ app.layout = html.Div([
             ),
             html.Br(),
             html.Div([
-                html.Label("Von:", style={'margin': '10px'}),
+                html.Label("von:", style={'margin': '10px'}),
                 dcc.Input(
                     id='min-year-input',
                     type='number',
                     value=df['year'].min(),
                     style={'width': '45%', 'marginRight': '5%'}
                 ),
-                html.Label("Bis:", style={'margin': '10px'}),
+                html.Label("bis:", style={'margin': '10px'}),
                 dcc.Input(
                     id='max-year-input',
                     type='number',
@@ -343,7 +343,7 @@ app.layout = html.Div([
             ], style={'display': 'flex', 'justifyContent': 'space-between'}),
 
             # Statistik
-            html.H4("Statistik", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
+            html.H4("Statistik:", style={'marginBottom': '10px', 'borderBottom': '1px solid #ccc'}),
             html.Div(id='stats-container')
         ], style={
             'flex': '25%',
