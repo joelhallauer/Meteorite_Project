@@ -663,7 +663,7 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
                 lon="reclong",
                 color="year",
                 size="size_for_plot",
-                size_max=15,
+                size_max=10,
                 color_continuous_scale="Viridis",
                 hover_name="name",
                 hover_data={
@@ -706,7 +706,7 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
                 lon="reclong",
                 color="year",
                 size="size_for_plot",
-                size_max=15,
+                size_max=10,
                 color_continuous_scale="Viridis",
                 hover_name="name",
                 hover_data={
