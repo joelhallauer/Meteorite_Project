@@ -130,6 +130,17 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
                         dash.html.P("Bitte versuchen Sie es später erneut.")
                     ], style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#ffeeee',
                                   'border': '1px solid #ff0000', 'borderRadius': '5px'})
+    elif location and triggered_id != 'reset-button':
+        # Wenn Location vorhanden ist und es kein Reset ist, Location-Suche beibehalten
+        try:
+            coords = geocode_location(location)
+            if coords:
+                center_lat, center_lon = coords
+                map_center = dict(lat=center_lat, lon=center_lon)
+                zoom_level = calculate_zoom_level(radius)
+                location_triggered = True
+        except Exception as e:
+            print(f"Geocoding error during view change: {e}")
     elif triggered_id == 'reset-button':
         center_lat, center_lon = None, None
         radius = 'unlimited'
