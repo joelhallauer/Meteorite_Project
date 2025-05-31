@@ -4,15 +4,14 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 
-# Initialize app first
 app = dash.Dash(__name__)
 app.title = "Impact Atlas"
 
-# Import and initialize cache before other imports
+# Cache initialisieren
 from src.utils import init_cache
 init_cache(app.server)
 
-# Now import the rest
+# Komponenten und Utilities importieren
 from src.components import create_layout
 from src.utils import (
     df, format_mass_int, get_cache, geocode_location,
@@ -33,6 +32,7 @@ app.layout = create_layout()
     [Input('reset-button', 'n_clicks')]
 )
 def reset_location_inputs(n_clicks):
+    """Setzt die Eingabefelder für Ort und Radius zurück."""
     if n_clicks and n_clicks > 0:
         return '', 'unlimited'
     return no_update, no_update
@@ -64,7 +64,10 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
                    clu_clicks, pun_clicks, hea_clicks, dia_clicks,
                    active_cell,
                    location, radius):
-
+    """
+    Diese Haupt-Callback-Funktion aktualisiert den gesamten Inhalt der App
+    (Karte, Diagramme, Tabelle, Statistiken) basierend auf Filterauswahlen und Navigation.
+    """
     map_center = dict(lat=20, lon=0)
     zoom_level = 1.5
     center_lat, center_lon = None, None
@@ -72,28 +75,19 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
     ctx = dash.callback_context
     triggered_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
 
-    # Determine active mode - prioritize direct button clicks
-    active_mode = 'nav-clu'  # Default to cluster map
-    
+    # Aktiven Modus (Karten-/Diagrammtyp) bestimmen
+    active_mode = 'nav-clu' # Standardmäßig Cluster-Karte
     if triggered_id in ['nav-clu', 'nav-pun', 'nav-hea', 'nav-dia']:
-        # Direct navigation button click - use that mode
         active_mode = triggered_id
     else:
-        # Other trigger - determine based on highest click count
         button_clicks = {
-            'nav-clu': clu_clicks or 0,
-            'nav-pun': pun_clicks or 0,
-            'nav-hea': hea_clicks or 0,
-            'nav-dia': dia_clicks or 0
+            'nav-clu': clu_clicks or 0, 'nav-pun': pun_clicks or 0,
+            'nav-hea': hea_clicks or 0, 'nav-dia': dia_clicks or 0
         }
-        
-        # If all buttons have 0 clicks, default to cluster
         if all(click == 0 for click in button_clicks.values()):
             active_mode = 'nav-clu'
         else:
-            # Find the button with the highest click count
             max_clicks = max(button_clicks.values())
-            # If there are ties, prefer the order: clu -> pun -> hea -> dia
             for mode in ['nav-clu', 'nav-pun', 'nav-hea', 'nav-dia']:
                 if button_clicks[mode] == max_clicks:
                     active_mode = mode
@@ -101,6 +95,7 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
 
     location_triggered = False
     if triggered_id == 'search-button':
+        # Ortssuche durchführen, wenn der Suchbutton geklickt wurde
         if location:
             try:
                 coords = geocode_location(location)
@@ -110,28 +105,28 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
                     zoom_level = calculate_zoom_level(radius)
                     location_triggered = True
                 else:
+                    # Fehlermeldung bei nicht gefundenem Ort
                     return create_empty_map_figure(), go.Figure(), go.Figure(), [], \
                         {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'}, \
                         {'display': 'none'}, \
                         dash.html.Div([
                             dash.html.P(f"Ort '{location}' konnte nicht gefunden werden.",
-                                          style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '16px'}),
+                                          style={'color': 'red'}),
                             dash.html.P("Bitte überprüfen Sie die Schreibweise oder versuchen Sie einen anderen Ort.")
-                        ], style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#ffeeee',
-                                      'border': '1px solid #ff0000', 'borderRadius': '5px'})
+                        ])
             except Exception as e:
+                # Fehlermeldung bei Geocoding-Fehler
                 print(f"Geocoding error: {e}")
                 return create_empty_map_figure(), go.Figure(), go.Figure(), [], \
                     {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'}, \
                     {'display': 'none'}, \
                     dash.html.Div([
                         dash.html.P(f"Ein Fehler ist bei der Ortssuche aufgetreten: {e}",
-                                      style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '16px'}),
+                                      style={'color': 'red'}),
                         dash.html.P("Bitte versuchen Sie es später erneut.")
-                    ], style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#ffeeee',
-                                  'border': '1px solid #ff0000', 'borderRadius': '5px'})
+                    ])
     elif location and triggered_id != 'reset-button':
-        # Wenn Location vorhanden ist und es kein Reset ist, Location-Suche beibehalten
+        # Vorhandene Ortssuche beibehalten
         try:
             coords = geocode_location(location)
             if coords:
@@ -142,12 +137,13 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
         except Exception as e:
             print(f"Geocoding error during view change: {e}")
     elif triggered_id == 'reset-button':
+        # Filter zurücksetzen
         center_lat, center_lon = None, None
         radius = 'unlimited'
         zoom_level = 1.5
         map_center = dict(lat=20, lon=0)
 
-    # Apply filters to get filtered dataframe
+    # DataFrame filtern
     filtered_df = filter_dataframe(
         df, selected_mass, selected_classes, selected_year, selected_falls,
         (center_lat, center_lon) if center_lat is not None else None,
@@ -155,21 +151,19 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
     )
 
     if filtered_df.empty:
+        # Fehlermeldung bei leeren Daten nach Filterung
         if location_triggered and center_lat is not None and radius != 'unlimited':
             error_message = dash.html.Div([
                 dash.html.P(f"Keine Meteoriten im Umkreis von {radius} km um {location} gefunden!",
-                              style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '16px'}),
+                              style={'color': 'red'}),
                 dash.html.P("Bitte versuche einen größeren Suchradius oder einen anderen Ort.")
-            ], style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#ffeeee',
-                          'border': '1px solid #ff0000', 'borderRadius': '5px'})
-            
+            ])
             empty_fig_with_radius = create_empty_map_figure(center_lat, center_lon, calculate_zoom_level(radius))
             circle_lats, circle_lons = get_circle_coords(center_lat, center_lon, float(radius))
             empty_fig_with_radius.add_trace(go.Scattermapbox(
                 lat=circle_lats, lon=circle_lons, mode='lines', fill='toself',
                 fillcolor='rgba(255,0,0,0.15)', line=dict(color='red', width=2), name='Suchradius'
             ))
-            
             return empty_fig_with_radius, go.Figure(), go.Figure(), [], \
                 {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'}, \
                 {'display': 'none'}, \
@@ -183,7 +177,7 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
 
     stats = get_stats(filtered_df)
 
-    # Handle table cell selection for map centering
+    # Kartenmittelpunkt basierend auf Tabellenzellenauswahl anpassen
     if active_cell and 'row' in active_cell and active_mode != 'nav-dia':
         idx = active_cell['row']
         if 0 <= idx < len(filtered_df):
@@ -191,24 +185,20 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
             map_center = dict(lat=sel['reclat'], lon=sel['reclong'])
             zoom_level = 6
 
-    # Determine which view to show
+    # Ansicht basierend auf dem aktiven Modus umschalten (Diagramme oder Karte/Tabelle)
     if active_mode == 'nav-dia':
+        # Diagramm-Ansicht
         map_and_table_container_style = {'display': 'none'}
         diagram_container_style = {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'}
-
         country_diagram_fig = create_country_bar_chart(filtered_df)
         class_diagram_fig = create_class_bar_chart(filtered_df)
-
         return go.Figure(), country_diagram_fig, class_diagram_fig, [], \
             map_and_table_container_style, diagram_container_style, stats
-
     else:
+        # Karten- und Tabellenansicht
         map_and_table_container_style = {'flex': '75%', 'padding': '10px', 'display': 'flex', 'flexDirection': 'column'}
         diagram_container_style = {'display': 'none'}
-
-        # Create the appropriate map based on active mode
         map_fig = go.Figure()
-        
         if active_mode == 'nav-clu':
             map_fig = create_cluster_map(filtered_df, map_center, zoom_level, center_lat, center_lon, radius)
         elif active_mode == 'nav-pun':
@@ -216,14 +206,11 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
         elif active_mode == 'nav-hea':
             map_fig = create_heatmap(filtered_df, map_center, zoom_level, center_lat, center_lon, radius)
         else:
-            # Fallback to cluster map if something unexpected happens
             map_fig = create_cluster_map(filtered_df, map_center, zoom_level, center_lat, center_lon, radius)
-        
-        table_data = filtered_df[['name', 'year', 'formatted_mass', 'recclass', 'country']].to_dict('records')
 
+        table_data = filtered_df[['name', 'year', 'formatted_mass', 'recclass', 'country']].to_dict('records')
         return map_fig, go.Figure(), go.Figure(), table_data, \
             map_and_table_container_style, diagram_container_style, stats
-
 
 @app.callback(
     [Output('mass-slider', 'value'),
@@ -236,6 +223,7 @@ def update_content(selected_falls, selected_classes, search_clicks, reset_clicks
     [State('mass-slider', 'min'), State('mass-slider', 'max')]
 )
 def sync_mass_inputs(slider_value, min_mass_input, max_mass_input, slider_min_log, slider_max_log):
+    """Synchronisiert den Massen-Range-Slider mit den Min/Max-Eingabefeldern."""
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else 'initial_load'
 
@@ -244,40 +232,26 @@ def sync_mass_inputs(slider_value, min_mass_input, max_mass_input, slider_min_lo
         current_max_mass = 10**slider_value[1] - 1
         return slider_value, current_min_mass, current_max_mass, \
                f"{format_mass_int(current_min_mass)} – {format_mass_int(current_max_mass)}"
-
     elif trigger_id == 'min-mass-input':
-        if min_mass_input is None:
-            min_mass_input = df['mass'].min()
-        
+        if min_mass_input is None: min_mass_input = df['mass'].min()
         current_max_mass_val = max_mass_input if max_mass_input is not None else df['mass'].max()
         min_mass_input = min(min_mass_input, current_max_mass_val)
-
         new_slider_min = np.log10(min_mass_input + 1)
         new_slider_max = np.log10(current_max_mass_val + 1)
-
         new_slider_min = max(new_slider_min, slider_min_log)
         new_slider_max = min(new_slider_max, slider_max_log)
-
         return [new_slider_min, new_slider_max], min_mass_input, current_max_mass_val, \
                f"{format_mass_int(min_mass_input)} – {format_mass_int(current_max_mass_val)}"
-
     elif trigger_id == 'max-mass-input':
-        if max_mass_input is None:
-            max_mass_input = df['mass'].max()
-        
+        if max_mass_input is None: max_mass_input = df['mass'].max()
         current_min_mass_val = min_mass_input if min_mass_input is not None else df['mass'].min()
         max_mass_input = max(max_mass_input, current_min_mass_val)
-
         new_slider_min = np.log10(current_min_mass_val + 1)
         new_slider_max = np.log10(max_mass_input + 1)
-
         new_slider_min = max(new_slider_min, slider_min_log)
         new_slider_max = min(new_slider_max, slider_max_log)
-
         return [new_slider_min, new_slider_max], current_min_mass_val, max_mass_input, \
                f"{format_mass_int(current_min_mass_val)} – {format_mass_int(max_mass_input)}"
-
-    # Default return for initial load
     min_m_init = 10**slider_value[0] - 1
     max_m_init = 10**slider_value[1] - 1
     return slider_value, min_m_init, max_m_init, \
@@ -295,39 +269,29 @@ def sync_mass_inputs(slider_value, min_mass_input, max_mass_input, slider_min_lo
     [State('year-slider', 'min'), State('year-slider', 'max')]
 )
 def sync_year_inputs(slider_value, min_year_input, max_year_input, slider_min, slider_max):
+    """Synchronisiert den Jahres-Range-Slider mit den Min/Max-Eingabefeldern."""
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else 'initial_load'
 
     if trigger_id == 'year-slider':
         return slider_value, slider_value[0], slider_value[1], \
                f"{int(slider_value[0])} – {int(slider_value[1])}"
-
     elif trigger_id == 'min-year-input':
-        if min_year_input is None:
-            min_year_input = df['year'].min()
-        
+        if min_year_input is None: min_year_input = df['year'].min()
         current_max_year = max_year_input if max_year_input is not None else df['year'].max()
         min_year_input = min(min_year_input, current_max_year)
         min_year_input = max(min_year_input, slider_min)
-
         return [min_year_input, current_max_year], min_year_input, current_max_year, \
                f"{int(min_year_input)} – {int(current_max_year)}"
-
     elif trigger_id == 'max-year-input':
-        if max_year_input is None:
-            max_year_input = df['year'].max()
-        
+        if max_year_input is None: max_year_input = df['year'].max()
         current_min_year = min_year_input if min_year_input is not None else df['year'].min()
         max_year_input = max(max_year_input, current_min_year)
         max_year_input = min(max_year_input, slider_max)
-
         return [current_min_year, max_year_input], current_min_year, max_year_input, \
                f"{int(current_min_year)} – {int(max_year_input)}"
-
-    # Default return
     return slider_value, slider_value[0], slider_value[1], \
            f"{int(slider_value[0])} – {int(slider_value[1])}"
-
 
 if __name__ == '__main__':
     app.run_server(debug=True)
