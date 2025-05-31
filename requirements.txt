@@ -4,3 +4,5 @@ dash-html-components==2.0.0
 pandas==2.2.2
 plotly==5.22.0
 geopy==2.4.1
+numpy==1.26.4
+Flask-Caching==2.1.0
