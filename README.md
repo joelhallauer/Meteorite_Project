@@ -8,7 +8,7 @@ Die zentrale Motivation für den "Impact Atlas" war die Entwicklung eines webbas
 
 ## 🎯 Projektziele
 
-* **Entwicklung eines webbasierten Dashboards**: Erstellung einer interaktiven Plattform zur Erkundung von Meteoritendaten].
+* **Entwicklung eines webbasierten Dashboards**: Erstellung einer interaktiven Plattform zur Erkundung von Meteoritendaten.
 * **Kombination von Datenvisualisierung, interaktiver Filterung und geografischer Verortung**: Bereitstellung vielfältiger Möglichkeiten zur Datenexploration.
 * **Darstellung aller Meteoritenfunde auf einer interaktiven Weltkarte**: Visualisierung der geografischen Verteilung von Meteoriteneinschlägen.
 * **Filterung nach Masse, Jahr, Meteoritentyp und Fundstatus**: Ermöglichung detaillierter Analysen der Daten.
